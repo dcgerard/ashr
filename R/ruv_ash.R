@@ -27,6 +27,10 @@
 #'     it will add an intercept term. If \code{FALSE}, then \code{X}
 #'     will be unchanged.
 #'
+#' @export
+#'
+#' @author David Gerard
+#'
 #' @references Andreas Buja and Nermin Eyuboglu. Remarks on parallel
 #'     analysis. Multivariate behavioral research, 27(4):509–540,
 #'     1992.

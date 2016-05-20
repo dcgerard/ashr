@@ -41,6 +41,9 @@ will be unchanged.}
 Perform RUV to estimate confounders, estimate scale using simple
 MLE, run ash.
 }
+\author{
+David Gerard
+}
 \references{
 Andreas Buja and Nermin Eyuboglu. Remarks on parallel
     analysis. Multivariate behavioral research, 27(4):509–540,
