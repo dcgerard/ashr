@@ -7,11 +7,11 @@ test_that("ash_ruv add interecept", {
     p <- 20
     k <- 5
     cov_of_interest <- k
-    X <- matrix(rnorm(n * k), nrow = n)
-    beta <- matrix(rnorm(k * p), nrow = k)
+    X <- matrix(stats::rnorm(n * k), nrow = n)
+    beta <- matrix(stats::rnorm(k * p), nrow = k)
     beta[, 1:round(p/2)] <- 0
     ctl <- beta[cov_of_interest, ] == 0
-    E <- matrix(rnorm(n * p), nrow = n)
+    E <- matrix(stats::rnorm(n * p), nrow = n)
     Y <- X %*% beta + E
 
     num_sv <- 2
@@ -36,11 +36,11 @@ test_that("ash_ruv with k=0 same as ols + ash", {
     p <- 20
     k <- 5
     cov_of_interest <- k
-    X <- matrix(rnorm(n * k), nrow = n)
-    beta <- matrix(rnorm(k * p), nrow = k)
+    X <- matrix(stats::rnorm(n * k), nrow = n)
+    beta <- matrix(stats::rnorm(k * p), nrow = k)
     beta[, 1:round(p/2)] <- 0
     ctl <- beta[cov_of_interest, ] == 0
-    E <- matrix(rnorm(n * p), nrow = n)
+    E <- matrix(stats::rnorm(n * p), nrow = n)
     Y <- X %*% beta + E
     num_sv <- 0
 
