@@ -38,6 +38,7 @@
 ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = list(),
                     include_intercept = TRUE) {
 
+
     if (!requireNamespace("ruv", quietly = TRUE)) {
         stop("R package ruv needs to be installed to run ash_ruv. To install, run in R:\n   install.packages(\"ruv\")")
     }
