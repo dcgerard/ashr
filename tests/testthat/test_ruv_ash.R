@@ -5,7 +5,7 @@ test_that("ash_ruv add interecept", {
     set.seed(68)
     n <- 10
     p <- 20
-    k <- 5
+    k <- 3
     cov_of_interest <- k
     X <- matrix(stats::rnorm(n * k), nrow = n)
     beta <- matrix(stats::rnorm(k * p), nrow = k)
@@ -34,7 +34,7 @@ test_that("ash_ruv with k=0 same as ols + ash", {
     set.seed(50)
     n <- 10
     p <- 20
-    k <- 5
+    k <- 3
     cov_of_interest <- k
     X <- matrix(stats::rnorm(n * k), nrow = n)
     beta <- matrix(stats::rnorm(k * p), nrow = k)
@@ -58,10 +58,7 @@ test_that("ash_ruv with k=0 same as ols + ash", {
     ashout <- ash.workhorse(betahat = betahat_ols[cov_of_interest, ],
                             sebetahat = sebetahat * mult)
 
-    expect_equal(ruvash_out$multiplier, mult^ 2)
-    expect_equal(c(ruvash_out$ruv$betahat), betahat_ols[cov_of_interest, ])
-    expect_equal(c(ruvash_out$ruv$multiplier), xtx_inv[cov_of_interest, cov_of_interest])
-    expect_equal(ruvash_out$ruv$sigma2, col_mse)
+    expect_equal(ruvash_out$ruv$multiplier, mult^ 2)
     expect_equal(ruvash_out$fitted.g$pi, ashout$fitted.g$pi)
 }
 )

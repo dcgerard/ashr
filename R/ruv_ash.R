@@ -38,11 +38,6 @@
 ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = list(),
                     include_intercept = TRUE) {
 
-
-    if (!requireNamespace("ruv", quietly = TRUE)) {
-        stop("R package ruv needs to be installed to run ash_ruv. To install, run in R:\n   install.packages(\"ruv\")")
-    }
-
     assertthat::are_equal(nrow(Y), nrow(X))
     assertthat::assert_that(cov_of_interest >= 1 & cov_of_interest <= ncol(X))
 
@@ -65,27 +60,80 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = l
         }
     }
 
-    ruvout <- ruv::RUV4(Y = Y, X = X[, cov_of_interest, drop = FALSE],
-                        Z = X[, -cov_of_interest, drop = FALSE],
-                        ctl = ctl, k = k)
+    ## Place desired covariate as last covariate
+    X <- X[, c((1:ncol(X))[-cov_of_interest], cov_of_interest), drop = FALSE]
+    cov_of_interest <- ncol(X)
 
-    betahat <- ruvout$betahat
-    sebetahat <- sqrt(ruvout$sigma2 * ruvout$multiplier)
-    t_stat <- betahat / sebetahat
-    assertthat::are_equal(t_stat, ruvout$t)
+    qr_x <- qr(X)
+    ## multiply by sign so that it matches with beta_hat_ols
+    Q <- qr.Q(qr_x, complete = TRUE) * sign(qr.R(qr_x)[cov_of_interest, cov_of_interest])
+    Y_tilde <- crossprod(Q, Y)[cov_of_interest:nrow(Y), , drop = FALSE]  # discard first q-1 rows.
 
-    multiplier <- mean(t_stat[ctl] ^ 2)
+    ## Factor analysis using all but first row of Y_tilde
+    pca_out <- pca_naive(Y = Y_tilde[2:nrow(Y_tilde), , drop = FALSE], r = k)
+    alpha <- pca_out$Gamma
+    sig_diag <- pca_out$Sigma
 
-    sebetahat_scaled <- sebetahat * sqrt(multiplier)
+    ## absorb fnorm(X) into Y_tilde[1,], alpha, and sig_diag -------------------
+    fnorm_x <- abs(qr.R(qr_x)[cov_of_interest, cov_of_interest])  ## since dealt with sign earlier
+    betahat_ols <- t(Y_tilde[1, , drop = FALSE]) / fnorm_x ## this is betahat from OLS, called Y1 in CATE.
+    alpha_scaled <- alpha / fnorm_x
+    sig_diag_scaled <- sig_diag / (fnorm_x ^ 2) ## this is se of betahat ols if no confounders
+
+    ## Use control genes to jointly estimate Z1 and variance scaling parameter.
+    Yc <- betahat_ols[ctl, , drop = FALSE]
+    if (k != 0) {
+        alphac     <- alpha_scaled[ctl, , drop = FALSE]
+        Sigmac_inv <- diag(1 / sig_diag_scaled[ctl])
+        Z1 <- solve(t(alphac) %*% Sigmac_inv %*% alphac) %*% t(alphac) %*% Yc
+        resid_mat <- Yc - alphac %*% Z1
+        betahat <- betahat_ols - alpha_scaled %*% Z1
+    } else {
+        resid_mat <- Yc
+        betahat <- betahat_ols
+    }
+    multiplier <- mean(resid_mat ^ 2 / sig_diag_scaled[ctl])
+
+    ## run ASH
+    sebetahat <- sqrt(sig_diag_scaled * multiplier)
 
     ash_args$betahat   <- betahat
-    ash_args$sebetahat <- sebetahat_scaled
+    ash_args$sebetahat <- sebetahat
     ## ash_args$df        <- ruvout$df
 
     ash_out <- do.call(what = ash.workhorse, args = ash_args)
-    ash_out$multiplier <- multiplier
-    ash_out$ruv <- ruvout
-
+    ash_out$ruv <- list()
+    ash_out$ruv$multiplier    <- multiplier
+    ash_out$ruv$betahat_ols   <- betahat_ols
+    ash_out$ruv$sebetahat_ols <- sqrt(sig_diag_scaled)
+    ash_out$ruv$betahat       <- betahat
+    ash_out$ruv$sebetahat     <- sebetahat
+    ash_out$ruv$alphahat      <- alpha
 
     return(ash_out)
+}
+
+
+
+#' Basic PCA.
+#'
+#' Most if not all of code is from package \code{cate}. This is mostly
+#' so people don't have to install sva and leapp if they want to use
+#' it.
+#'
+#'
+#' @param Y A matrix of numerics. The data.
+#' @param r the rank.
+pca_naive <- function (Y, r) {
+    if(r == 0) {
+        Gamma <- NULL
+        Z <- NULL
+        Sigma <- apply(Y, 2, function(x) mean(x ^ 2))
+    } else {
+        svd_Y <- svd(Y)
+        Gamma <- svd_Y$v[, 1:r, drop = FALSE] %*% diag(svd_Y$d[1:r], r, r) / sqrt(nrow(Y))
+        Z <- sqrt(nrow(Y)) * svd_Y$u[, 1:r, drop = FALSE]
+        Sigma <- apply(Y - Z %*% t(Gamma), 2, function(x) mean(x ^ 2))
+    }
+    return(list(Gamma = Gamma, Z = Z, Sigma = Sigma))
 }
