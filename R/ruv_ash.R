@@ -180,6 +180,7 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = l
     ash_out$ruv$betahat       <- betahat
     ash_out$ruv$sebetahat     <- sebetahat
     ash_out$ruv$alphahat      <- alpha
+    ash_out$input             <- ash_args
 
     return(ash_out)
 }
@@ -239,7 +240,6 @@ pca_naive <- function (Y, r) {
 #'     it will add an intercept term. If \code{FALSE}, then \code{X}
 #'     will be unchanged.
 #'
-#' @export
 #'
 #' @author David Gerard
 #'

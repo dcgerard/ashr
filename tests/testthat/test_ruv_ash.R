@@ -1,5 +1,5 @@
 library(ashr)
-context("ASH + RUV")
+context("\nRUVASH")
 
 test_that("ash_ruv add interecept", {
     set.seed(68)
@@ -86,5 +86,29 @@ test_that("ash_ruv and ash_ruv_old give same results when using ols", {
 
     expect_equal(c(as.matrix(ruvash_out$ruv$betahat)), c(ruvold_out$ruv$betahat))
     expect_equal(ruvash_out$fitted.g$pi, ruvold_out$fitted.g$pi)
+}
+)
+
+
+test_that("t-likelihood in ash_ruv works", {
+    set.seed(68)
+    n <- 10
+    p <- 20
+    k <- 3
+    cov_of_interest <- k
+    X <- matrix(stats::rnorm(n * k), nrow = n)
+    beta <- matrix(stats::rnorm(k * p), nrow = k)
+    beta[, 1:round(p/2)] <- 0
+    ctl <- beta[cov_of_interest, ] == 0
+    E <- matrix(stats::rnorm(n * p), nrow = n)
+    Y <- X %*% beta + E
+    num_sv <- 2
+
+
+    ashout <- ash_ruv(Y = Y, X = X, ctl = ctl, k = num_sv,
+                      include_intercept = TRUE, likelihood = "t")
+    ashoutnorm <- ash_ruv(Y = Y, X = X, ctl = ctl, k = num_sv,
+                          include_intercept = TRUE, likelihood = "normal")
+    expect_true(all(ashout$fitted.g$pi != ashoutnorm$fitted.g$pi))
 }
 )
