@@ -26,6 +26,10 @@
 #'     check \code{X} to see if it has an intercept term. If not, then
 #'     it will add an intercept term. If \code{FALSE}, then \code{X}
 #'     will be unchanged.
+#' @param gls A logical. Should we use generalized least squares
+#'     (\code{TRUE}) or ordinary least squares (\code{FALSE}) for
+#'     estimating the confounders? The OLS version is equivalent to
+#'     using RUV to estimate the confounders.
 #'
 #' @export
 #'
@@ -36,10 +40,12 @@
 #'     1992.
 #'
 ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = list(),
-                    include_intercept = TRUE) {
+                    include_intercept = TRUE, gls = TRUE) {
 
     assertthat::are_equal(nrow(Y), nrow(X))
     assertthat::assert_that(cov_of_interest >= 1 & cov_of_interest <= ncol(X))
+    assertthat::assert_that(is.logical(gls))
+    assertthat::assert_that(is.list(ash_args))
 
     if (is.null(k)) {
         if (requireNamespace("sva", quietly = TRUE)) {
@@ -78,14 +84,18 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = l
     fnorm_x <- abs(qr.R(qr_x)[cov_of_interest, cov_of_interest])  ## since dealt with sign earlier
     betahat_ols <- t(Y_tilde[1, , drop = FALSE]) / fnorm_x ## this is betahat from OLS, called Y1 in CATE.
     alpha_scaled <- alpha / fnorm_x
-    sig_diag_scaled <- sig_diag / (fnorm_x ^ 2) ## this is se of betahat ols if no confounders
+    sig_diag_scaled <- sig_diag / (fnorm_x ^ 2) ## this is se of betahat_ols if no confounders
 
     ## Use control genes to jointly estimate Z1 and variance scaling parameter.
     Yc <- betahat_ols[ctl, , drop = FALSE]
     if (k != 0) {
         alphac     <- alpha_scaled[ctl, , drop = FALSE]
         Sigmac_inv <- diag(1 / sig_diag_scaled[ctl])
-        Z1 <- solve(t(alphac) %*% Sigmac_inv %*% alphac) %*% t(alphac) %*% Yc
+        if (gls) {
+            Z1 <- solve(t(alphac) %*% Sigmac_inv %*% alphac) %*% t(alphac) %*% Sigmac_inv %*% Yc
+        } else {
+            Z1 <- solve(t(alphac) %*% alphac) %*% t(alphac) %*% Yc
+        }
         resid_mat <- Yc - alphac %*% Z1
         betahat <- betahat_ols - alpha_scaled %*% Z1
     } else {
@@ -99,7 +109,6 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = l
 
     ash_args$betahat   <- betahat
     ash_args$sebetahat <- sebetahat
-    ## ash_args$df        <- ruvout$df
 
     ash_out <- do.call(what = ash.workhorse, args = ash_args)
     ash_out$ruv <- list()
@@ -136,4 +145,95 @@ pca_naive <- function (Y, r) {
         Sigma <- apply(Y - Z %*% t(Gamma), 2, function(x) mean(x ^ 2))
     }
     return(list(Gamma = Gamma, Z = Z, Sigma = Sigma))
+}
+
+
+#' Perform RUV to estimate confounders, estimate scale using simple
+#' MLE, run ash.
+#'
+#' This is the depricated version and may be removed at any moment.
+#'
+#' @param Y A matrix of numerics. These are the response variables
+#'     where each column has its own variance. In a gene expression
+#'     study, the rows are the individuals and the columns are the
+#'     genes.
+#' @param X A matrix of numerics. The covariates of interest.
+#' @param k A non-negative integer.The number of unobserved
+#'     confounders. If not specified and the R package sva is
+#'     installed, then this function will estimate the number of
+#'     hidden confounders using th methods of Buja and Eyuboglu
+#'     (1992).
+#' @param cov_of_interest A positive integer. The column number of
+#'     covariate in X whose coefficients you want to apply ASH to.
+#' @param ctl A vector of logicals of length \code{ncol(Y)}. If
+#'     position i is \code{TRUE} then position i is considered a
+#'     negative control.
+#' @param ash_args A list of arguments to pass to ash. See
+#'     \code{\link{ash.workhorse}} for details.
+#' @param include_intercept A logical. If \code{TRUE}, then it will
+#'     check \code{X} to see if it has an intercept term. If not, then
+#'     it will add an intercept term. If \code{FALSE}, then \code{X}
+#'     will be unchanged.
+#'
+#' @export
+#'
+#' @author David Gerard
+#'
+#' @references Andreas Buja and Nermin Eyuboglu. Remarks on parallel
+#'     analysis. Multivariate behavioral research, 27(4):509–540,
+#'     1992.
+#'
+ash_ruv_old <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = list(),
+                    include_intercept = TRUE) {
+
+
+    if (!requireNamespace("ruv", quietly = TRUE)) {
+        stop("R package ruv needs to be installed to run ash_ruv. To install, run in R:\n   install.packages(\"ruv\")")
+    }
+
+    assertthat::are_equal(nrow(Y), nrow(X))
+    assertthat::assert_that(cov_of_interest >= 1 & cov_of_interest <= ncol(X))
+
+    if (is.null(k)) {
+        if (requireNamespace("sva", quietly = TRUE)) {
+            message("Number of confounders not provided so being estimated with package sva.")
+            k <- sva::num.sv(dat = t(Y), mod = X)
+        } else {
+            stop("If sva is not installed, then k needs to be provided. To install sva, run in R\n   source(\"https://bioconductor.org/biocLite.R\")\n   biocLite(\"sva\")")
+        }
+    }
+
+    if (include_intercept) {
+        X_scaled <- apply(X, 2, function(x) { x / sqrt(sum(x ^ 2)) })
+        int_term <- rep(1, length = nrow(X)) / sqrt(nrow(X))
+
+        any_int <- any(colSums((int_term - X_scaled) ^ 2) < 10 ^ -14)
+        if (!any_int) {
+            X <- cbind(X, rep(1, length = nrow(X)))
+        }
+    }
+
+    ruvout <- ruv::RUV4(Y = Y, X = X[, cov_of_interest, drop = FALSE],
+                        Z = X[, -cov_of_interest, drop = FALSE],
+                        ctl = ctl, k = k)
+
+    betahat <- ruvout$betahat
+    sebetahat <- sqrt(ruvout$sigma2 * ruvout$multiplier)
+    t_stat <- betahat / sebetahat
+    assertthat::are_equal(t_stat, ruvout$t)
+
+    multiplier <- mean(t_stat[ctl] ^ 2)
+
+    sebetahat_scaled <- sebetahat * sqrt(multiplier)
+
+    ash_args$betahat   <- betahat
+    ash_args$sebetahat <- sebetahat_scaled
+    ## ash_args$df        <- ruvout$df
+
+    ash_out <- do.call(what = ash.workhorse, args = ash_args)
+    ash_out$multiplier <- multiplier
+    ash_out$ruv <- ruvout
+
+
+    return(ash_out)
 }

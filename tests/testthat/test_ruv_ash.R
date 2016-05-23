@@ -62,3 +62,29 @@ test_that("ash_ruv with k=0 same as ols + ash", {
     expect_equal(ruvash_out$fitted.g$pi, ashout$fitted.g$pi)
 }
 )
+
+
+test_that("ash_ruv and ash_ruv_old give same results when using ols", {
+    set.seed(68)
+    n <- 10
+    p <- 20
+    k <- 3
+    cov_of_interest <- k
+    X <- matrix(stats::rnorm(n * k), nrow = n)
+    beta <- matrix(stats::rnorm(k * p), nrow = k)
+    beta[, 1:round(p/2)] <- 0
+    ctl <- beta[cov_of_interest, ] == 0
+    E <- matrix(stats::rnorm(n * p), nrow = n)
+    Y <- X %*% beta + E
+
+    num_sv <- 2
+
+    ruvash_out <- ash_ruv(Y = Y, X = X, ctl = ctl, k = num_sv,
+                            include_intercept = FALSE, gls = FALSE)
+    ruvold_out <- ash_ruv_old(Y = Y, X = X, ctl = ctl, k = num_sv,
+                              include_intercept = FALSE)
+
+    expect_equal(c(as.matrix(ruvash_out$ruv$betahat)), c(ruvold_out$ruv$betahat))
+    expect_equal(ruvash_out$fitted.g$pi, ruvold_out$fitted.g$pi)
+}
+)
