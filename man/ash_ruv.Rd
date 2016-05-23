@@ -2,8 +2,8 @@
 % Please edit documentation in R/ruv_ash.R
 \name{ash_ruv}
 \alias{ash_ruv}
-\title{Perform RUV to estimate confounders, estimate scale using simple
-MLE, run ash.}
+\title{Use control genes to estimate hidden confounders and variance
+inflation parameter, then run ASH.}
 \usage{
 ash_ruv(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = list(),
   include_intercept = TRUE, gls = TRUE)
@@ -43,15 +43,58 @@ estimating the confounders? The OLS version is equivalent to
 using RUV to estimate the confounders.}
 }
 \description{
-Perform RUV to estimate confounders, estimate scale using simple
-MLE, run ash.
+This function will perform a variant of Removing Unwanted Variation
+4-step (RUV4) (Gagnon-Bartsch et al, 2013) where the control genes
+are used not only to estimate the hidden confounders, but to
+estimate a variance inflation parameter. This variance inflation
+step is akin to the "empirical null" approach of Efron
+(2004). After this procedure, Adaptive SHrinkage (ASH) (Stephens,
+2016) is performed on the coefficient estimates and the inflated
+standard errors.
+}
+\details{
+The model is \deqn{Y = XB + ZA + E,} where \eqn{Y} is a matrix of
+responses (e.g. log-transformed gene expression levels), \eqn{X} is
+a matrix of covariates, \eqn{B} is a matrix of coefficients,
+\eqn{Z} is a matrix of unobserved confounders, \eqn{A} is a matrix
+of unobserved coefficients of the unobserved confounders, and
+\eqn{E} is the noise matrix where the elements are independent
+Gaussian and each column shares a common variance. The rows of
+\eqn{Y} are the observations (e.g. individuals) and the columns of
+\eqn{Y} are the response variables (e.g. genes).
+
+This model is fit using a two-step approach proposed in
+Gagnon-Bartsch et al (2013) and described in Wang et al (2015),
+modified to include estimating a variance inflation
+parameter. Rather than use OLS in the second step of this two-step
+procedure, we estimate the coefficients using Adaptive SHrinkage
+(ASH) (Stephens, 2016). In the current implementation, only the
+coefficients of one covariate can be estimated using ASH. The rest
+are regressed out using OLS.
 }
 \author{
 David Gerard
 }
 \references{
-Andreas Buja and Nermin Eyuboglu. Remarks on parallel
+Gagnon-Bartsch, J., Laurent Jacob, and Terence
+    P. Speed. "Removing unwanted variation from high dimensional data with negative controls."
+    Berkeley: Department of Statistics. University of California
+    (2013).
+
+    Andreas Buja and Nermin Eyuboglu. Remarks on parallel
     analysis. Multivariate behavioral research, 27(4):509–540,
     1992.
+
+    Bradley Efron
+    "Large-Scale Simultaneous Hypothesis Testing: The Choice of a Null Hypothesis",
+    Journal of the American Statistical Association, 99:465,
+    96-104, 2004.
+
+    Stephens, Matthew. "False Discovery Rates: A New Deal." bioRxiv
+    (2016): 038216.
+
+    Wang, J., Zhao, Q., Hastie, T., & Owen, A. B
+    "Confounder Adjustment in Multiple Hypotheses Testing."
+    arXiv preprint arXiv:1508.04178 (2015).
 }
 
