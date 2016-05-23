@@ -41,7 +41,7 @@
 #' @param k A non-negative integer.The number of unobserved
 #'     confounders. If not specified and the R package sva is
 #'     installed, then this function will estimate the number of
-#'     hidden confounders using th methods of Buja and Eyuboglu
+#'     hidden confounders using the methods of Buja and Eyuboglu
 #'     (1992).
 #' @param cov_of_interest A positive integer. The column number of
 #'     covariate in X whose coefficients you want to apply ASH to.
@@ -68,8 +68,8 @@
 #'     Berkeley: Department of Statistics. University of California
 #'     (2013).
 #'
-#'     Andreas Buja and Nermin Eyuboglu. Remarks on parallel
-#'     analysis. Multivariate behavioral research, 27(4):509–540,
+#'     Andreas Buja and Nermin Eyuboglu. "Remarks on parallel
+#'     analysis." Multivariate behavioral research, 27(4):509–540,
 #'     1992.
 #'
 #'     Bradley Efron
@@ -162,6 +162,7 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = l
     ash_args$betahat   <- betahat
     ash_args$sebetahat <- sebetahat
 
+
     ash_out <- do.call(what = ash.workhorse, args = ash_args)
     ash_out$ruv <- list()
     ash_out$ruv$multiplier    <- multiplier
@@ -178,13 +179,15 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = l
 
 #' Basic PCA.
 #'
-#' Most if not all of code is from package \code{cate}. This is mostly
-#' so people don't have to install sva and leapp if they want to use
-#' it.
+#' Most of this code is from the package \code{cate}. I corrected some
+#' problems. Specifically, I allow \code{r = 0} and I included a few
+#' needed \code{drop = FALSE} terms.
 #'
 #'
 #' @param Y A matrix of numerics. The data.
 #' @param r the rank.
+#'
+#' @author David Gerard
 pca_naive <- function (Y, r) {
     if(r == 0) {
         Gamma <- NULL
@@ -240,7 +243,7 @@ ash_ruv_old <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args
 
 
     if (!requireNamespace("ruv", quietly = TRUE)) {
-        stop("R package ruv needs to be installed to run ash_ruv. To install, run in R:\n   install.packages(\"ruv\")")
+        stop("R package ruv needs to be installed to run ash_ruv_old. To install, run in R:\n   install.packages(\"ruv\")")
     }
 
     assertthat::are_equal(nrow(Y), nrow(X))
