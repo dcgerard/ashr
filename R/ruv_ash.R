@@ -159,7 +159,9 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = l
         resid_mat <- Yc
         betahat <- betahat_ols
     }
-    multiplier <- mean(resid_mat ^ 2 / sig_diag_scaled[ctl])
+
+    ## similar to MLE to UMVUE adjustment, divide by degrees of freedom.
+    multiplier <- sum(resid_mat ^ 2 / sig_diag_scaled[ctl]) / (nrow(X) - k - ncol(X))
 
     ## run ASH
     sebetahat <- sqrt(sig_diag_scaled * multiplier)
