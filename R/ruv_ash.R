@@ -42,19 +42,15 @@
 ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = list(),
                     include_intercept = TRUE, gls = TRUE) {
 
+    assertthat::assert_that(is.matrix(Y))
+    assertthat::assert_that(is.matrix(X))
     assertthat::are_equal(nrow(Y), nrow(X))
+    assertthat::are_equal(ncol(Y), length(ctl))
+    assertthat::assert_that(is.logical(ctl))
     assertthat::assert_that(cov_of_interest >= 1 & cov_of_interest <= ncol(X))
     assertthat::assert_that(is.logical(gls))
+    assertthat::assert_that(is.logical(include_intercept))
     assertthat::assert_that(is.list(ash_args))
-
-    if (is.null(k)) {
-        if (requireNamespace("sva", quietly = TRUE)) {
-            message("Number of confounders not provided so being estimated with package sva.")
-            k <- sva::num.sv(dat = t(Y), mod = X)
-        } else {
-            stop("If sva is not installed, then k needs to be provided. To install sva, run in R\n   source(\"https://bioconductor.org/biocLite.R\")\n   biocLite(\"sva\")")
-        }
-    }
 
     if (include_intercept) {
         X_scaled <- apply(X, 2, function(x) { x / sqrt(sum(x ^ 2)) })
@@ -65,6 +61,17 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = l
             X <- cbind(X, rep(1, length = nrow(X)))
         }
     }
+
+    if (is.null(k)) {
+        if (requireNamespace("sva", quietly = TRUE)) {
+            message("Number of confounders not provided so being estimated with package sva.")
+            k <- sva::num.sv(dat = t(Y), mod = X)
+        } else {
+            stop("If sva is not installed, then k needs to be provided. To install sva, run in R\n   source(\"https://bioconductor.org/biocLite.R\")\n   biocLite(\"sva\")")
+        }
+    }
+
+    assertthat::assert_that(k + ncol(X) < nrow(X))
 
     ## Place desired covariate as last covariate
     X <- X[, c((1:ncol(X))[-cov_of_interest], cov_of_interest), drop = FALSE]

@@ -6,7 +6,7 @@
 MLE, run ash.}
 \usage{
 ash_ruv(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = list(),
-  include_intercept = TRUE)
+  include_intercept = TRUE, gls = TRUE)
 }
 \arguments{
 \item{Y}{A matrix of numerics. These are the response variables
@@ -36,6 +36,11 @@ covariate in X whose coefficients you want to apply ASH to.}
 check \code{X} to see if it has an intercept term. If not, then
 it will add an intercept term. If \code{FALSE}, then \code{X}
 will be unchanged.}
+
+\item{gls}{A logical. Should we use generalized least squares
+(\code{TRUE}) or ordinary least squares (\code{FALSE}) for
+estimating the confounders? The OLS version is equivalent to
+using RUV to estimate the confounders.}
 }
 \description{
 Perform RUV to estimate confounders, estimate scale using simple

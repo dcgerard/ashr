@@ -38,8 +38,7 @@ it will add an intercept term. If \code{FALSE}, then \code{X}
 will be unchanged.}
 }
 \description{
-Perform RUV to estimate confounders, estimate scale using simple
-MLE, run ash.
+This is the depricated version and may be removed at any moment.
 }
 \author{
 David Gerard
