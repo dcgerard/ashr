@@ -12,8 +12,11 @@ pca_naive(Y, r)
 \item{r}{the rank.}
 }
 \description{
-Most if not all of code is from package \code{cate}. This is mostly
-so people don't have to install sva and leapp if they want to use
-it.
+Most of this code is from the package \code{cate}. I corrected some
+problems. Specifically, I allow \code{r = 0} and I included a few
+needed \code{drop = FALSE} terms.
+}
+\author{
+David Gerard
 }
 

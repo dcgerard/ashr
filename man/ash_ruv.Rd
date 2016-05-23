@@ -23,7 +23,7 @@ negative control.}
 \item{k}{A non-negative integer.The number of unobserved
 confounders. If not specified and the R package sva is
 installed, then this function will estimate the number of
-hidden confounders using th methods of Buja and Eyuboglu
+hidden confounders using the methods of Buja and Eyuboglu
 (1992).}
 
 \item{cov_of_interest}{A positive integer. The column number of
@@ -81,8 +81,8 @@ Gagnon-Bartsch, J., Laurent Jacob, and Terence
     Berkeley: Department of Statistics. University of California
     (2013).
 
-    Andreas Buja and Nermin Eyuboglu. Remarks on parallel
-    analysis. Multivariate behavioral research, 27(4):509–540,
+    Andreas Buja and Nermin Eyuboglu. "Remarks on parallel
+    analysis." Multivariate behavioral research, 27(4):509–540,
     1992.
 
     Bradley Efron
