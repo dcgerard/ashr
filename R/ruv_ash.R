@@ -58,6 +58,9 @@
 #'     (\code{TRUE}) or ordinary least squares (\code{FALSE}) for
 #'     estimating the confounders? The OLS version is equivalent to
 #'     using RUV to estimate the confounders.
+#' @param likliehood Either \code{"normal"} or \code{"t"}. If
+#'     \code{likelihood = "t"}, then the degrees of freedom will be
+#'     the sample size minus the number of covariates minus \code{k}.
 #'
 #' @export
 #'
@@ -85,7 +88,7 @@
 #'     arXiv preprint arXiv:1508.04178 (2015).
 #'
 ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = list(),
-                    include_intercept = TRUE, gls = TRUE) {
+                    include_intercept = TRUE, gls = TRUE, likelihood = c("normal", "t")) {
 
     assertthat::assert_that(is.matrix(Y))
     assertthat::assert_that(is.matrix(X))
@@ -96,6 +99,8 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = l
     assertthat::assert_that(is.logical(gls))
     assertthat::assert_that(is.logical(include_intercept))
     assertthat::assert_that(is.list(ash_args))
+
+    likelihood <- match.arg(likelihood)
 
     if (include_intercept) {
         X_scaled <- apply(X, 2, function(x) { x / sqrt(sum(x ^ 2)) })
@@ -161,6 +166,10 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = l
 
     ash_args$betahat   <- betahat
     ash_args$sebetahat <- sebetahat
+
+    if (likelihood == "t") {
+        ash_args$df <- nrow(X) - k - ncol(X)
+    } ## else, ash_args$df = NULL gives normal likelihood
 
 
     ash_out <- do.call(what = ash.workhorse, args = ash_args)
