@@ -164,7 +164,7 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = l
     ## run ASH
     sebetahat <- sqrt(sig_diag_scaled * multiplier)
 
-    ash_args$betahat   <- betahat
+    ash_args$betahat   <- c(betahat)
     ash_args$sebetahat <- sebetahat
 
     if (likelihood == "t") {
@@ -172,7 +172,7 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = l
     } ## else, ash_args$df = NULL gives normal likelihood
 
 
-    ash_out <- do.call(what = ash.workhorse, args = ash_args)
+    ash_out <- do.call(what = ashr::ash.workhorse, args = ash_args)
     ash_out$ruv <- list()
     ash_out$ruv$multiplier    <- multiplier
     ash_out$ruv$betahat_ols   <- betahat_ols
