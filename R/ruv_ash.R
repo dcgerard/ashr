@@ -1,7 +1,3 @@
-#########
-## Wrapper for ash + RUV inflating variances by simple MLE estimate.
-#########
-
 #' Use control genes to estimate hidden confounders and variance
 #' inflation parameter, then run ASH.
 #'
@@ -67,7 +63,8 @@
 #' @author David Gerard
 #'
 #' @references Gagnon-Bartsch, J., Laurent Jacob, and Terence
-#'     P. Speed. "Removing unwanted variation from high dimensional data with negative controls."
+#'     P. Speed. "Removing unwanted variation from high dimensional
+#'     data with negative controls."
 #'     Berkeley: Department of Statistics. University of California
 #'     (2013).
 #'
@@ -76,7 +73,8 @@
 #'     1992.
 #'
 #'     Bradley Efron
-#'     "Large-Scale Simultaneous Hypothesis Testing: The Choice of a Null Hypothesis",
+#'     "Large-Scale Simultaneous Hypothesis Testing: The Choice of a Null
+#'     Hypothesis",
 #'     Journal of the American Statistical Association, 99:465,
 #'     96-104, 2004.
 #'
@@ -87,8 +85,9 @@
 #'     "Confounder Adjustment in Multiple Hypotheses Testing."
 #'     arXiv preprint arXiv:1508.04178 (2015).
 #'
-ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = list(),
-                    include_intercept = TRUE, gls = TRUE, likelihood = c("normal", "t")) {
+ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X),
+                    ash_args = list(), include_intercept = TRUE,
+                    gls = TRUE, likelihood = c("normal", "t")) {
 
     assertthat::assert_that(is.matrix(Y))
     assertthat::assert_that(is.matrix(X))
@@ -103,10 +102,12 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = l
     likelihood <- match.arg(likelihood)
 
     if (include_intercept) {
-        X_scaled <- apply(X, 2, function(x) { x / sqrt(sum(x ^ 2)) })
+        X_scaled <- apply(X, 2, function(x) {
+            x / sqrt(sum(x ^ 2))
+        })
         int_term <- rep(1, length = nrow(X)) / sqrt(nrow(X))
 
-        any_int <- any(colSums((int_term - X_scaled) ^ 2) < 10 ^ -14)
+        any_int <- any(colSums( (int_term - X_scaled) ^ 2) < 10 ^ -14)
         if (!any_int) {
             X <- cbind(X, rep(1, length = nrow(X)))
         }
@@ -124,24 +125,29 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = l
     assertthat::assert_that(k + ncol(X) < nrow(X))
 
     ## Place desired covariate as last covariate
-    X <- X[, c((1:ncol(X))[-cov_of_interest], cov_of_interest), drop = FALSE]
+    X <- X[, c( (1:ncol(X))[-cov_of_interest], cov_of_interest), drop = FALSE]
     cov_of_interest <- ncol(X)
 
     qr_x <- qr(X)
     ## multiply by sign so that it matches with beta_hat_ols
-    Q <- qr.Q(qr_x, complete = TRUE) * sign(qr.R(qr_x)[cov_of_interest, cov_of_interest])
-    Y_tilde <- crossprod(Q, Y)[cov_of_interest:nrow(Y), , drop = FALSE]  # discard first q-1 rows.
+    Q <- qr.Q(qr_x, complete = TRUE) *
+        sign(qr.R(qr_x)[cov_of_interest, cov_of_interest])
+    ## discard first q-1 rows.
+    Y_tilde <- crossprod(Q, Y)[cov_of_interest:nrow(Y), , drop = FALSE]
 
     ## Factor analysis using all but first row of Y_tilde
     pca_out <- pca_naive(Y = Y_tilde[2:nrow(Y_tilde), , drop = FALSE], r = k)
     alpha <- pca_out$Gamma
     sig_diag <- pca_out$Sigma
 
-    ## absorb fnorm(X) into Y_tilde[1,], alpha, and sig_diag -------------------
-    fnorm_x <- abs(qr.R(qr_x)[cov_of_interest, cov_of_interest])  ## since dealt with sign earlier
-    betahat_ols <- t(Y_tilde[1, , drop = FALSE]) / fnorm_x ## this is betahat from OLS, called Y1 in CATE.
+    ## absorb fnorm(X) into Y_tilde[1,], alpha, and sig_diag -----------------
+    ## since dealt with sign earlier
+    fnorm_x <- abs(qr.R(qr_x)[cov_of_interest, cov_of_interest])
+    ## this is betahat from OLS, called Y1 in CATE.
+    betahat_ols <- t(Y_tilde[1, , drop = FALSE]) / fnorm_x
     alpha_scaled <- alpha / fnorm_x
-    sig_diag_scaled <- sig_diag / (fnorm_x ^ 2) ## this is se of betahat_ols if no confounders
+    ## this is se of betahat_ols if no confounders
+    sig_diag_scaled <- sig_diag / (fnorm_x ^ 2)
 
     ## Use control genes to jointly estimate Z1 and variance scaling parameter.
     Yc <- betahat_ols[ctl, , drop = FALSE]
@@ -149,7 +155,8 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = l
         alphac     <- alpha_scaled[ctl, , drop = FALSE]
         Sigmac_inv <- diag(1 / sig_diag_scaled[ctl])
         if (gls) {
-            Z1 <- solve(t(alphac) %*% Sigmac_inv %*% alphac) %*% t(alphac) %*% Sigmac_inv %*% Yc
+            Z1 <- solve(t(alphac) %*% Sigmac_inv %*% alphac) %*% t(alphac) %*%
+                Sigmac_inv %*% Yc
         } else {
             Z1 <- solve(t(alphac) %*% alphac) %*% t(alphac) %*% Yc
         }
@@ -161,7 +168,8 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = l
     }
 
     ## similar to MLE to UMVUE adjustment, divide by degrees of freedom.
-    multiplier <- mean(resid_mat ^ 2 / sig_diag_scaled[ctl]) * nrow(X) / (nrow(X) - k - ncol(X))
+    multiplier <- mean(resid_mat ^ 2 / sig_diag_scaled[ctl]) *
+        nrow(X) / (nrow(X) - k - ncol(X))
 
     ## run ASH
     sebetahat <- sqrt(sig_diag_scaled * multiplier)
@@ -201,13 +209,14 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = l
 #'
 #' @author David Gerard
 pca_naive <- function (Y, r) {
-    if(r == 0) {
+    if (r == 0) {
         Gamma <- NULL
         Z <- NULL
         Sigma <- apply(Y, 2, function(x) mean(x ^ 2))
     } else {
         svd_Y <- svd(Y)
-        Gamma <- svd_Y$v[, 1:r, drop = FALSE] %*% diag(svd_Y$d[1:r], r, r) / sqrt(nrow(Y))
+        Gamma <- svd_Y$v[, 1:r, drop = FALSE] %*% diag(svd_Y$d[1:r], r, r) /
+            sqrt(nrow(Y))
         Z <- sqrt(nrow(Y)) * svd_Y$u[, 1:r, drop = FALSE]
         Sigma <- apply(Y - Z %*% t(Gamma), 2, function(x) mean(x ^ 2))
     }
@@ -249,8 +258,8 @@ pca_naive <- function (Y, r) {
 #'     analysis. Multivariate behavioral research, 27(4):509–540,
 #'     1992.
 #'
-ash_ruv_old <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = list(),
-                    include_intercept = TRUE) {
+ash_ruv_old <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X),
+                        ash_args = list(), include_intercept = TRUE) {
 
 
     if (!requireNamespace("ruv", quietly = TRUE)) {
@@ -270,10 +279,12 @@ ash_ruv_old <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args
     }
 
     if (include_intercept) {
-        X_scaled <- apply(X, 2, function(x) { x / sqrt(sum(x ^ 2)) })
+        X_scaled <- apply(X, 2, function(x) {
+            x / sqrt(sum(x ^ 2))
+        })
         int_term <- rep(1, length = nrow(X)) / sqrt(nrow(X))
 
-        any_int <- any(colSums((int_term - X_scaled) ^ 2) < 10 ^ -14)
+        any_int <- any(colSums( (int_term - X_scaled) ^ 2) < 10 ^ -14)
         if (!any_int) {
             X <- cbind(X, rep(1, length = nrow(X)))
         }
@@ -294,7 +305,6 @@ ash_ruv_old <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args
 
     ash_args$betahat   <- betahat
     ash_args$sebetahat <- sebetahat_scaled
-    ## ash_args$df        <- ruvout$df
 
     ash_out <- do.call(what = ash.workhorse, args = ash_args)
     ash_out$multiplier <- multiplier

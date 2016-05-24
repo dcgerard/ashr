@@ -81,7 +81,8 @@ David Gerard
 }
 \references{
 Gagnon-Bartsch, J., Laurent Jacob, and Terence
-    P. Speed. "Removing unwanted variation from high dimensional data with negative controls."
+    P. Speed. "Removing unwanted variation from high dimensional
+    data with negative controls."
     Berkeley: Department of Statistics. University of California
     (2013).
 
@@ -90,7 +91,8 @@ Gagnon-Bartsch, J., Laurent Jacob, and Terence
     1992.
 
     Bradley Efron
-    "Large-Scale Simultaneous Hypothesis Testing: The Choice of a Null Hypothesis",
+    "Large-Scale Simultaneous Hypothesis Testing: The Choice of a Null
+    Hypothesis",
     Journal of the American Statistical Association, 99:465,
     96-104, 2004.
 

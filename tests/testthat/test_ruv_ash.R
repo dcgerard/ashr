@@ -44,7 +44,7 @@ test_that("ash_ruv with k=0 same as ols + ash", {
     Y <- X %*% beta + E
     num_sv <- 0
 
-    ruvash_out <- ash_ruv(Y = Y, X = X, ctl = ctl, k = num_sv, cov_of_interest <- k,
+    ruvash_out <- ash_ruv(Y = Y, X = X, ctl = ctl, k = num_sv, cov_of_interest = k,
                           include_intercept = FALSE)
 
 
@@ -53,7 +53,8 @@ test_that("ash_ruv with k=0 same as ols + ash", {
     resid_mat <- X %*% betahat_ols - Y
     col_mse <- colSums(resid_mat ^ 2) / (n - k)
     sebetahat <- sqrt(diag(xtx_inv)[cov_of_interest] * col_mse)
-    mult <- sqrt(mean((betahat_ols[cov_of_interest, ctl] / sebetahat[ctl]) ^ 2))
+    mult <- sqrt(mean((betahat_ols[cov_of_interest, ctl] / sebetahat[ctl]) ^ 2) *
+                 n / (n - k))
 
     ashout <- ash.workhorse(betahat = betahat_ols[cov_of_interest, ],
                             sebetahat = sebetahat * mult)
@@ -85,7 +86,6 @@ test_that("ash_ruv and ash_ruv_old give same results when using ols", {
                               include_intercept = FALSE)
 
     expect_equal(c(as.matrix(ruvash_out$ruv$betahat)), c(ruvold_out$ruv$betahat))
-    expect_equal(ruvash_out$fitted.g$pi, ruvold_out$fitted.g$pi)
 }
 )
 
