@@ -14,7 +14,8 @@ pca_naive(Y, r)
 \description{
 Most of this code is from the package \code{cate}. I corrected some
 problems. Specifically, I allow \code{r = 0} and I included a few
-needed \code{drop = FALSE} terms.
+needed \code{drop = FALSE} terms. I also divide by \code{nrow(Y) -
+r} rather than by \code{nrow(Y)}.
 }
 \author{
 David Gerard

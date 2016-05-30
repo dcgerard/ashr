@@ -46,6 +46,46 @@ using RUV to estimate the confounders.}
 \code{likelihood = "t"}, then the degrees of freedom will be
 the sample size minus the number of covariates minus \code{k}.}
 }
+\value{
+Except for the list \code{ruv}, the values returned are the
+    exact same as in \code{\link{ash.workhorse}}. See that function
+    for more details. Elements in the code{ruv} list are:
+
+    \code{multiplier} A numeric. The estimated variance inflation parameter.
+
+    \code{betahat_ols} A vector of numerics. The ordinary least
+    squares estimates of the coefficients of the covariate of
+    interest. This is when not including the estiamted confounding
+    variables.  ash_out$ruv$multiplier <- multiplier
+
+    \code{sebetahat_ols} A vector of positive numerics. The
+    pre-inflation standard errors of $\code{ruv$betahat} (NOT
+    \code{ruv$betahat_ols}).
+
+    \code{betahat} A vector of numerics. The ordinary least squares
+    estimates of the coefficients of the covariate of interest WHEN
+    YOU ALSO INCLUDE THE ESTIMATES OF THE UNOBSERVED CONFOUNDERS.
+
+    \code{sebetahat} A vector of positive numerics. This is equal
+    to sqrt(ruv$sebethat_ols * ruv$multiplier). This is the
+    post-inflation adjusted standard errors for \code{ruv$betahat}.
+
+    \code{tstats} A vector of numerics. The t-statistics for
+    testing against the null hypothesis of the coefficient of the
+    covariate of interest being zero.
+
+    \code{pvalues} A vector of numerics. The p-values of said test
+    above.
+
+    \code{alphahat} A matrix of numerics. The estimates of the
+    coefficients of the hidden confounders.
+
+    \code{input} A list of arguments sent to
+    \code{\link{ash.workhorse}}.
+
+    \code{sig_diag} A vector of positive numerics. The estimates of
+    the variances.
+}
 \description{
 This function will perform a variant of Removing Unwanted Variation
 4-step (RUV4) (Gagnon-Bartsch et al, 2013) where the control genes

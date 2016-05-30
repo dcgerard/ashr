@@ -58,6 +58,46 @@
 #'     \code{likelihood = "t"}, then the degrees of freedom will be
 #'     the sample size minus the number of covariates minus \code{k}.
 #'
+#'
+#' @return Except for the list \code{ruv}, the values returned are the
+#'     exact same as in \code{\link{ash.workhorse}}. See that function
+#'     for more details. Elements in the code{ruv} list are:
+#'
+#'     \code{multiplier} A numeric. The estimated variance inflation parameter.
+#'
+#'     \code{betahat_ols} A vector of numerics. The ordinary least
+#'     squares estimates of the coefficients of the covariate of
+#'     interest. This is when not including the estiamted confounding
+#'     variables.  ash_out$ruv$multiplier <- multiplier
+#'
+#'     \code{sebetahat_ols} A vector of positive numerics. The
+#'     pre-inflation standard errors of $\code{ruv$betahat} (NOT
+#'     \code{ruv$betahat_ols}).
+#'
+#'     \code{betahat} A vector of numerics. The ordinary least squares
+#'     estimates of the coefficients of the covariate of interest WHEN
+#'     YOU ALSO INCLUDE THE ESTIMATES OF THE UNOBSERVED CONFOUNDERS.
+#'
+#'     \code{sebetahat} A vector of positive numerics. This is equal
+#'     to sqrt(ruv$sebethat_ols * ruv$multiplier). This is the
+#'     post-inflation adjusted standard errors for \code{ruv$betahat}.
+#'
+#'     \code{tstats} A vector of numerics. The t-statistics for
+#'     testing against the null hypothesis of the coefficient of the
+#'     covariate of interest being zero.
+#'
+#'     \code{pvalues} A vector of numerics. The p-values of said test
+#'     above.
+#'
+#'     \code{alphahat} A matrix of numerics. The estimates of the
+#'     coefficients of the hidden confounders.
+#'
+#'     \code{input} A list of arguments sent to
+#'     \code{\link{ash.workhorse}}.
+#'
+#'     \code{sig_diag} A vector of positive numerics. The estimates of
+#'     the variances.
+#'
 #' @export
 #'
 #' @author David Gerard
@@ -181,16 +221,23 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X),
         ash_args$df <- nrow(X) - k - ncol(X)
     } ## else, ash_args$df = NULL gives normal likelihood
 
+    ash_out <- do.call(what = ash.workhorse, args = ash_args)
 
-    ash_out <- do.call(what = ashr::ash.workhorse, args = ash_args)
+    ## Output frequentist values.
     ash_out$ruv <- list()
     ash_out$ruv$multiplier    <- multiplier
     ash_out$ruv$betahat_ols   <- betahat_ols
     ash_out$ruv$sebetahat_ols <- sqrt(sig_diag_scaled)
     ash_out$ruv$betahat       <- betahat
     ash_out$ruv$sebetahat     <- sebetahat
+    ash_out$ruv$tstats        <- betahat / sebetahat
+    ash_out$ruv$pvalues       <- 2 * (stats::pt(q = -abs(ash_out$ruv$tstats),
+                                                df = nrow(X) - k - ncol(X)))
     ash_out$ruv$alphahat      <- alpha
     ash_out$input             <- ash_args
+    ash_out$ruv$sigma2        <- sig_diag
+    ## ash_out$ruv$fnorm_x       <- fnorm_x
+
 
     return(ash_out)
 }
@@ -201,7 +248,8 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X),
 #'
 #' Most of this code is from the package \code{cate}. I corrected some
 #' problems. Specifically, I allow \code{r = 0} and I included a few
-#' needed \code{drop = FALSE} terms.
+#' needed \code{drop = FALSE} terms. I also divide by \code{nrow(Y) -
+#' r} rather than by \code{nrow(Y)}.
 #'
 #'
 #' @param Y A matrix of numerics. The data.
@@ -218,7 +266,7 @@ pca_naive <- function (Y, r) {
         Gamma <- svd_Y$v[, 1:r, drop = FALSE] %*% diag(svd_Y$d[1:r], r, r) /
             sqrt(nrow(Y))
         Z <- sqrt(nrow(Y)) * svd_Y$u[, 1:r, drop = FALSE]
-        Sigma <- apply(Y - Z %*% t(Gamma), 2, function(x) mean(x ^ 2))
+        Sigma <- apply(Y - Z %*% t(Gamma), 2, function(x) sum(x ^ 2)) / (nrow(Y) - r)
     }
     return(list(Gamma = Gamma, Z = Z, Sigma = Sigma))
 }

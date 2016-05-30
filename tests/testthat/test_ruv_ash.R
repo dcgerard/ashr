@@ -67,8 +67,8 @@ test_that("ash_ruv with k=0 same as ols + ash", {
 
 test_that("ash_ruv and ash_ruv_old give same results when using ols", {
     set.seed(68)
-    n <- 10
-    p <- 20
+    n <- 11
+    p <- 19
     k <- 3
     cov_of_interest <- k
     X <- matrix(stats::rnorm(n * k), nrow = n)
@@ -80,12 +80,25 @@ test_that("ash_ruv and ash_ruv_old give same results when using ols", {
 
     num_sv <- 2
 
+    ruv4_out <- ruv::RUV4(Y = Y, X = X[, cov_of_interest, drop = FALSE],
+                          Z = X[, -cov_of_interest, drop = FALSE],
+                          ctl = ctl, k = num_sv)
+
     ruvash_out <- ash_ruv(Y = Y, X = X, ctl = ctl, k = num_sv,
                             include_intercept = FALSE, gls = FALSE)
     ruvold_out <- ash_ruv_old(Y = Y, X = X, ctl = ctl, k = num_sv,
                               include_intercept = FALSE)
 
+    ## I think these should be the same, but aren't.
+    1 / ruvash_out$ruv$fnorm_x ^ 2
+    ruv4_out$multiplier
+
+    expect_equal(c(ruv4_out$betahat), c(ruvash_out$ruv$betahat))
+    expect_equal(ruvash_out$ruv$sigma2, ruv4_out$sigma2)
+
     expect_equal(c(as.matrix(ruvash_out$ruv$betahat)), c(ruvold_out$ruv$betahat))
+    expect_equal(ruvold_out$ruv$sigma2, ruv4_out$sigma2)
+
 }
 )
 
