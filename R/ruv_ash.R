@@ -183,9 +183,12 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X),
     alpha <- pca_out$Gamma
     sig_diag <- pca_out$Sigma
 
-    if (limmashrink) {
-        sig_diag <- limma::squeezeVar(var = sig_diag,
-                                      df = nrow(X) - ncol(X) - k)
+    if (requireNamespace("limma", quietly = TRUE) & limmashrink) {
+        limma_out <- limma::squeezeVar(var = sig_diag,
+                                       df = nrow(X) - ncol(X) - k)
+        sig_diag <- limma_out$var.post
+    } else if (!requireNamespace("limma", quietly = TRUE) & limmashrink) {
+        stop("limmashrink = TRUE but limma not installed. To install limma, write in R:\n    source(\"https://bioconductor.org/biocLite.R\")\n    biocLite(\"limma\")")
     }
 
     ## absorb fnorm(X) into Y_tilde[1,], alpha, and sig_diag -----------------

@@ -23,6 +23,8 @@ LinkingTo: Rcpp
 Suggests:
     REBayes,
     roxygen2,
-    sva
+    sva,
+    limma,
+    ruv
 URL: "http://github.com/stephens999/ashr
 RoxygenNote: 5.0.1
