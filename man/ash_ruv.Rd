@@ -6,7 +6,8 @@
 inflation parameter, then run ASH.}
 \usage{
 ash_ruv(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = list(),
-  include_intercept = TRUE, gls = TRUE, likelihood = c("normal", "t"))
+  include_intercept = TRUE, gls = TRUE, likelihood = c("normal", "t"),
+  limmashrink = FALSE)
 }
 \arguments{
 \item{Y}{A matrix of numerics. These are the response variables
@@ -41,6 +42,9 @@ will be unchanged.}
 (\code{TRUE}) or ordinary least squares (\code{FALSE}) for
 estimating the confounders? The OLS version is equivalent to
 using RUV to estimate the confounders.}
+
+\item{limmashrink}{A logical. Should we apply hierarchical
+shrinkage to the variances (\code{TRUE}) or not (\code{FALSE})?}
 
 \item{likliehood}{Either \code{"normal"} or \code{"t"}. If
 \code{likelihood = "t"}, then the degrees of freedom will be

@@ -57,6 +57,8 @@
 #' @param likliehood Either \code{"normal"} or \code{"t"}. If
 #'     \code{likelihood = "t"}, then the degrees of freedom will be
 #'     the sample size minus the number of covariates minus \code{k}.
+#' @param limmashrink A logical. Should we apply hierarchical
+#'     shrinkage to the variances (\code{TRUE}) or not (\code{FALSE})?
 #'
 #'
 #' @return Except for the list \code{ruv}, the values returned are the
@@ -127,7 +129,8 @@
 #'
 ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X),
                     ash_args = list(), include_intercept = TRUE,
-                    gls = TRUE, likelihood = c("normal", "t")) {
+                    gls = TRUE, likelihood = c("normal", "t"),
+                    limmashrink = FALSE) {
 
     assertthat::assert_that(is.matrix(Y))
     assertthat::assert_that(is.matrix(X))
@@ -179,6 +182,11 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X),
     pca_out <- pca_naive(Y = Y_tilde[2:nrow(Y_tilde), , drop = FALSE], r = k)
     alpha <- pca_out$Gamma
     sig_diag <- pca_out$Sigma
+
+    if (limmashrink) {
+        sig_diag <- limma::squeezeVar(var = sig_diag,
+                                      df = nrow(X) - ncol(X) - k)
+    }
 
     ## absorb fnorm(X) into Y_tilde[1,], alpha, and sig_diag -----------------
     ## since dealt with sign earlier
