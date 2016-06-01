@@ -71,6 +71,8 @@
 #'     that just uses the first \code{r} singular vectors as the
 #'     estimate of \code{alpha}. The estimated variances are just the
 #'     column-wise mean square.
+#' @param fa_args A list. Additional arguments you want to pass to
+#'     fa_func.
 #'
 #'
 #' @return Except for the list \code{ruv}, the values returned are the
@@ -109,7 +111,7 @@
 #'     \code{input} A list of arguments sent to
 #'     \code{\link{ash.workhorse}}.
 #'
-#'     \code{sig_diag} A vector of positive numerics. The estimates of
+#'     \code{sigma2} A vector of positive numerics. The estimates of
 #'     the variances.
 #'
 #' @export
@@ -142,7 +144,8 @@
 ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X),
                     ash_args = list(), include_intercept = TRUE,
                     gls = TRUE, likelihood = c("normal", "t"),
-                    limmashrink = FALSE, fa_func = "pca_naive") {
+                    limmashrink = FALSE, fa_func = "pca_naive",
+                    fa_args = list()) {
 
     assertthat::assert_that(is.matrix(Y))
     assertthat::assert_that(is.matrix(X))
@@ -154,6 +157,7 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X),
     assertthat::assert_that(is.logical(include_intercept))
     assertthat::assert_that(is.list(ash_args))
     assertthat::assert_that(is.logical(limmashrink))
+    assertthat::assert_that(is.list(fa_args))
 
     likelihood <- match.arg(likelihood)
 
@@ -192,7 +196,6 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X),
     Y_tilde <- crossprod(Q, Y)[cov_of_interest:nrow(Y), , drop = FALSE]
 
     ## Factor analysis using all but first row of Y_tilde
-    fa_args   <- list()
     fa_args$Y <- Y_tilde[2:nrow(Y_tilde), , drop = FALSE]
     fa_args$r <- k
     fa_out    <- do.call(what = fa_func, args = fa_args)

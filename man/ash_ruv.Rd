@@ -7,7 +7,7 @@ inflation parameter, then run ASH.}
 \usage{
 ash_ruv(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = list(),
   include_intercept = TRUE, gls = TRUE, likelihood = c("normal", "t"),
-  limmashrink = FALSE, fa_func = "pca_naive")
+  limmashrink = FALSE, fa_func = "pca_naive", fa_args = list())
 }
 \arguments{
 \item{Y}{A matrix of numerics. These are the response variables
@@ -59,6 +59,9 @@ that just uses the first \code{r} singular vectors as the
 estimate of \code{alpha}. The estimated variances are just the
 column-wise mean square.}
 
+\item{fa_args}{A list. Additional arguments you want to pass to
+fa_func.}
+
 \item{likliehood}{Either \code{"normal"} or \code{"t"}. If
 \code{likelihood = "t"}, then the degrees of freedom will be
 the sample size minus the number of covariates minus \code{k}.}
@@ -100,7 +103,7 @@ Except for the list \code{ruv}, the values returned are the
     \code{input} A list of arguments sent to
     \code{\link{ash.workhorse}}.
 
-    \code{sig_diag} A vector of positive numerics. The estimates of
+    \code{sigma2} A vector of positive numerics. The estimates of
     the variances.
 }
 \description{
