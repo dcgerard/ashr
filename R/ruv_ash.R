@@ -54,7 +54,7 @@
 #'     (\code{TRUE}) or ordinary least squares (\code{FALSE}) for
 #'     estimating the confounders? The OLS version is equivalent to
 #'     using RUV to estimate the confounders.
-#' @param likliehood Either \code{"normal"} or \code{"t"}. If
+#' @param likelihood Either \code{"normal"} or \code{"t"}. If
 #'     \code{likelihood = "t"}, then the degrees of freedom will be
 #'     the sample size minus the number of covariates minus \code{k}.
 #' @param limmashrink A logical. Should we apply hierarchical
@@ -76,17 +76,17 @@
 #'
 #' @return Except for the list \code{ruv}, the values returned are the
 #'     exact same as in \code{\link{ash.workhorse}}. See that function
-#'     for more details. Elements in the code{ruv} list are:
+#'     for more details. Elements in the \code{ruv} list are:
 #'
 #'     \code{multiplier} A numeric. The estimated variance inflation parameter.
 #'
 #'     \code{betahat_ols} A vector of numerics. The ordinary least
 #'     squares estimates of the coefficients of the covariate of
 #'     interest. This is when not including the estiamted confounding
-#'     variables.  ash_out$ruv$multiplier <- multiplier
+#'     variables.
 #'
 #'     \code{sebetahat_ols} A vector of positive numerics. The
-#'     pre-inflation standard errors of $\code{ruv$betahat} (NOT
+#'     pre-inflation standard errors of \code{ruv$betahat} (NOT
 #'     \code{ruv$betahat_ols}).
 #'
 #'     \code{betahat} A vector of numerics. The ordinary least squares
@@ -279,7 +279,7 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X),
     ash_out$ruv$alphahat      <- alpha
     ash_out$input             <- ash_args
     ash_out$ruv$sigma2        <- sig_diag
-    ## ash_out$ruv$fnorm_x       <- fnorm_x
+    ash_out$ruv$fnorm_x       <- fnorm_x
 
 
     return(ash_out)

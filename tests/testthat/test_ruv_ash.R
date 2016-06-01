@@ -90,9 +90,24 @@ test_that("ash_ruv and ash_ruv_old give same results when using ols", {
         ruvold_out <- ash_ruv_old(Y = Y, X = X, ctl = ctl, k = num_sv,
                                   include_intercept = FALSE)
 
-        ## I think these should be the same, but aren't.
-        1 / ruvash_out$ruv$fnorm_x ^ 2
-        ruv4_out$multiplier
+
+        ## ruv4_out$multiplier is term from design INCLUDING
+        ## unobserved covariates.  1 / ruvash_out$ruv$fnorm_x ^ 2 is
+        ## the term from the design NOT including unobserved
+        ## covariates.
+
+        ## make sure I understand RUV4 output
+        names(ruv4_out)
+        XZW <- cbind(ruv4_out$X, ruv4_out$Z, ruv4_out$W)
+        expect_equal(solve(t(XZW) %*% XZW)[1, 1], c(ruv4_out$multiplier))
+        betahat_xzw <- solve(t(XZW) %*% XZW) %*% t(XZW) %*% Y
+        sig2_xzw <- colSums((Y - XZW %*% betahat_xzw) ^ 2) / (nrow(XZW) - ncol(XZW))
+        expect_equal(solve(t(XZW) %*% XZW)[1, 1], c(ruv4_out$multiplier))
+        expect_equal(betahat_xzw[1, ], c(ruv4_out$betahat))
+        expect_equal(sig2_xzw, ruv4_out$sigma2)
+
+        expect_equal(solve(t(X) %*% X)[cov_of_interest, cov_of_interest],
+                     1 / ruvash_out$ruv$fnorm_x ^ 2)
 
         expect_equal(c(ruv4_out$betahat), c(ruvash_out$ruv$betahat))
         expect_equal(ruvash_out$ruv$sigma2, ruv4_out$sigma2)

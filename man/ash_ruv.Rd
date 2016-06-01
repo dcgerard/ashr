@@ -43,6 +43,10 @@ will be unchanged.}
 estimating the confounders? The OLS version is equivalent to
 using RUV to estimate the confounders.}
 
+\item{likelihood}{Either \code{"normal"} or \code{"t"}. If
+\code{likelihood = "t"}, then the degrees of freedom will be
+the sample size minus the number of covariates minus \code{k}.}
+
 \item{limmashrink}{A logical. Should we apply hierarchical
 shrinkage to the variances (\code{TRUE}) or not (\code{FALSE})?}
 
@@ -60,25 +64,21 @@ column-wise mean square.}
 
 \item{fa_args}{A list. Additional arguments you want to pass to
 fa_func.}
-
-\item{likliehood}{Either \code{"normal"} or \code{"t"}. If
-\code{likelihood = "t"}, then the degrees of freedom will be
-the sample size minus the number of covariates minus \code{k}.}
 }
 \value{
 Except for the list \code{ruv}, the values returned are the
     exact same as in \code{\link{ash.workhorse}}. See that function
-    for more details. Elements in the code{ruv} list are:
+    for more details. Elements in the \code{ruv} list are:
 
     \code{multiplier} A numeric. The estimated variance inflation parameter.
 
     \code{betahat_ols} A vector of numerics. The ordinary least
     squares estimates of the coefficients of the covariate of
     interest. This is when not including the estiamted confounding
-    variables.  ash_out$ruv$multiplier <- multiplier
+    variables.
 
     \code{sebetahat_ols} A vector of positive numerics. The
-    pre-inflation standard errors of $\code{ruv$betahat} (NOT
+    pre-inflation standard errors of \code{ruv$betahat} (NOT
     \code{ruv$betahat_ols}).
 
     \code{betahat} A vector of numerics. The ordinary least squares
