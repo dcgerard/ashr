@@ -59,6 +59,18 @@
 #'     the sample size minus the number of covariates minus \code{k}.
 #' @param limmashrink A logical. Should we apply hierarchical
 #'     shrinkage to the variances (\code{TRUE}) or not (\code{FALSE})?
+#' @param fa_func A string specifying the name of the factor analysis
+#'     function. The function must have as inputs a numeric matrix
+#'     \code{Y} and a rank (numeric scalar) \code{r}. It must output a
+#'     numeric matrix \code{alpha} and a numeric vector
+#'     \code{sig_diag}. \code{alpha} is the estimate of the
+#'     coefficients of the unobserved confounders, so it must be an
+#'     \code{r} by \code{ncol(Y)} matrix. \code{sig_diag} is the
+#'     estimate of the column-wise variances so it must be of length
+#'     \code{ncol(Y)}. The default is the function \code{pca_naive}
+#'     that just uses the first \code{r} singular vectors as the
+#'     estimate of \code{alpha}. The estimated variances are just the
+#'     column-wise mean square.
 #'
 #'
 #' @return Except for the list \code{ruv}, the values returned are the
@@ -130,7 +142,7 @@
 ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X),
                     ash_args = list(), include_intercept = TRUE,
                     gls = TRUE, likelihood = c("normal", "t"),
-                    limmashrink = FALSE) {
+                    limmashrink = FALSE, fa_func = "pca_naive") {
 
     assertthat::assert_that(is.matrix(Y))
     assertthat::assert_that(is.matrix(X))
@@ -141,6 +153,7 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X),
     assertthat::assert_that(is.logical(gls))
     assertthat::assert_that(is.logical(include_intercept))
     assertthat::assert_that(is.list(ash_args))
+    assertthat::assert_that(is.logical(limmashrink))
 
     likelihood <- match.arg(likelihood)
 
@@ -179,10 +192,26 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X),
     Y_tilde <- crossprod(Q, Y)[cov_of_interest:nrow(Y), , drop = FALSE]
 
     ## Factor analysis using all but first row of Y_tilde
-    pca_out <- pca_naive(Y = Y_tilde[2:nrow(Y_tilde), , drop = FALSE], r = k)
-    alpha <- pca_out$Gamma
-    sig_diag <- pca_out$Sigma
+    fa_args   <- list()
+    fa_args$Y <- Y_tilde[2:nrow(Y_tilde), , drop = FALSE]
+    fa_args$r <- k
+    fa_out    <- do.call(what = fa_func, args = fa_args)
+    alpha     <- fa_out$alpha
+    sig_diag  <- fa_out$sig_diag
 
+    ## make sure the user didn't screw up the factor analysis.
+    assertthat::assert_that(is.vector(sig_diag))
+    assertthat::are_equal(length(sig_diag), ncol(Y))
+    assertthat::assert_that(all(sig_diag > 0))
+    if (k != 0) {
+        assertthat::assert_that(is.matrix(alpha))
+        assertthat::are_equal(nrow(alpha), k)
+        assertthat::are_equal(ncol(alpha), ncol(Y))
+    } else {
+        assertthat::assert_that(is.null(alpha))
+    }
+
+    ## Shrink variances if desired.
     if (requireNamespace("limma", quietly = TRUE) & limmashrink) {
         limma_out <- limma::squeezeVar(var = sig_diag,
                                        df = nrow(X) - ncol(X) - k)
@@ -279,7 +308,7 @@ pca_naive <- function (Y, r) {
         Z <- sqrt(nrow(Y)) * svd_Y$u[, 1:r, drop = FALSE]
         Sigma <- apply(Y - Z %*% t(Gamma), 2, function(x) sum(x ^ 2)) / (nrow(Y) - r)
     }
-    return(list(Gamma = Gamma, Z = Z, Sigma = Sigma))
+    return(list(alpha = Gamma, Z = Z, sig_diag = Sigma))
 }
 
 
