@@ -59,13 +59,12 @@
 #'     the sample size minus the number of covariates minus \code{k}.
 #' @param limmashrink A logical. Should we apply hierarchical
 #'     shrinkage to the variances (\code{TRUE}) or not (\code{FALSE})?
-#' @param fa_func A string specifying the name of the factor analysis
-#'     function. The function must have as inputs a numeric matrix
-#'     \code{Y} and a rank (numeric scalar) \code{r}. It must output a
-#'     numeric matrix \code{alpha} and a numeric vector
-#'     \code{sig_diag}. \code{alpha} is the estimate of the
-#'     coefficients of the unobserved confounders, so it must be an
-#'     \code{r} by \code{ncol(Y)} matrix. \code{sig_diag} is the
+#' @param fa_func A factor analysis function. The function must have
+#'     as inputs a numeric matrix \code{Y} and a rank (numeric scalar)
+#'     \code{r}. It must output a numeric matrix \code{alpha} and a
+#'     numeric vector \code{sig_diag}. \code{alpha} is the estimate of
+#'     the coefficients of the unobserved confounders, so it must be
+#'     an \code{r} by \code{ncol(Y)} matrix. \code{sig_diag} is the
 #'     estimate of the column-wise variances so it must be of length
 #'     \code{ncol(Y)}. The default is the function \code{pca_naive}
 #'     that just uses the first \code{r} singular vectors as the
@@ -144,7 +143,7 @@
 ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X),
                     ash_args = list(), include_intercept = TRUE,
                     gls = TRUE, likelihood = c("normal", "t"),
-                    limmashrink = FALSE, fa_func = "pca_naive",
+                    limmashrink = FALSE, fa_func = pca_naive,
                     fa_args = list()) {
 
     assertthat::assert_that(is.matrix(Y))
@@ -158,6 +157,7 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X),
     assertthat::assert_that(is.list(ash_args))
     assertthat::assert_that(is.logical(limmashrink))
     assertthat::assert_that(is.list(fa_args))
+    assertthat::assert_that(is.function(fa_func))
 
     likelihood <- match.arg(likelihood)
 
