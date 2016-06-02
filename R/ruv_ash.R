@@ -157,6 +157,8 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X),
     assertthat::assert_that(is.list(ash_args))
     assertthat::assert_that(is.logical(limmashrink))
     assertthat::assert_that(is.list(fa_args))
+    assertthat::assert_that(is.null(fa_args$Y))
+    assertthat::assert_that(is.null(fa_args$r))
     assertthat::assert_that(is.function(fa_func))
 
     likelihood <- match.arg(likelihood)
