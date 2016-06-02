@@ -55,8 +55,11 @@
 #'     estimating the confounders? The OLS version is equivalent to
 #'     using RUV to estimate the confounders.
 #' @param likelihood Either \code{"normal"} or \code{"t"}. If
-#'     \code{likelihood = "t"}, then the degrees of freedom will be
-#'     the sample size minus the number of covariates minus \code{k}.
+#'     \code{likelihood = "t"}, then the user may provide the degrees
+#'     of freedom by including a \code{df} element in
+#'     \code{ash_args}. If \code{ash_args$df} is \code{NULL} then the
+#'     degrees of freedom will be the sample size minus the number of
+#'     covariates minus \code{k}.
 #' @param limmashrink A logical. Should we apply hierarchical
 #'     shrinkage to the variances (\code{TRUE}) or not (\code{FALSE})?
 #' @param fa_func A factor analysis function. The function must have
@@ -155,6 +158,8 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X),
     assertthat::assert_that(is.logical(gls))
     assertthat::assert_that(is.logical(include_intercept))
     assertthat::assert_that(is.list(ash_args))
+    assertthat::assert_that(is.null(ash_args$betahat))
+    assertthat::assert_that(is.null(ash_args$sebetahat))
     assertthat::assert_that(is.logical(limmashrink))
     assertthat::assert_that(is.list(fa_args))
     assertthat::assert_that(is.null(fa_args$Y))
@@ -222,7 +227,7 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X),
                                        df = nrow(X) - ncol(X) - k)
         sig_diag <- limma_out$var.post
     } else if (!requireNamespace("limma", quietly = TRUE) & limmashrink) {
-        stop("limmashrink = TRUE but limma not installed. To install limma, write in R:\n    source(\"https://bioconductor.org/biocLite.R\")\n    biocLite(\"limma\")")
+        stop("limmashrink = TRUE but limma not installed. To install limma, run in R:\n    source(\"https://bioconductor.org/biocLite.R\")\n    biocLite(\"limma\")")
     }
 
     ## absorb fnorm(X) into Y_tilde[1,], alpha, and sig_diag -----------------
@@ -262,8 +267,11 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X),
     ash_args$betahat   <- c(betahat)
     ash_args$sebetahat <- sebetahat
 
-    if (likelihood == "t") {
+    if (likelihood == "t" & is.null(ash_args$df)) {
         ash_args$df <- nrow(X) - k - ncol(X)
+    } else if (likelihood == "normal" & !is.null(ash_args$df)) {
+        message("likelihood = \"normal\" but ash_args$df not NULL. Ignoring ash_args$df.")
+        ash_args$df <- NULL
     } ## else, ash_args$df = NULL gives normal likelihood
 
     ash_out <- do.call(what = ash.workhorse, args = ash_args)

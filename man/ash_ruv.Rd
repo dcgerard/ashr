@@ -44,8 +44,11 @@ estimating the confounders? The OLS version is equivalent to
 using RUV to estimate the confounders.}
 
 \item{likelihood}{Either \code{"normal"} or \code{"t"}. If
-\code{likelihood = "t"}, then the degrees of freedom will be
-the sample size minus the number of covariates minus \code{k}.}
+\code{likelihood = "t"}, then the user may provide the degrees
+of freedom by including a \code{df} element in
+\code{ash_args}. If \code{ash_args$df} is \code{NULL} then the
+degrees of freedom will be the sample size minus the number of
+covariates minus \code{k}.}
 
 \item{limmashrink}{A logical. Should we apply hierarchical
 shrinkage to the variances (\code{TRUE}) or not (\code{FALSE})?}
