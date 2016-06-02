@@ -191,6 +191,10 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X),
 
     assertthat::assert_that(k + ncol(X) < nrow(X))
 
+    if (k >= sum(ctl)) {
+        stop("k is larger than the number of control genes so model not identified.\nReduce k or increase the number of control genes.\nYou can also try out succotashr. To install succotashr, run in R:\n    install.packages(\"devtools\")\n    devtools::install_github(\"dcgerard/succotashr\")")
+    }
+
     ## Place desired covariate as last covariate
     X <- X[, c( (1:ncol(X))[-cov_of_interest], cov_of_interest), drop = FALSE]
     cov_of_interest <- ncol(X)
