@@ -161,6 +161,9 @@ ash_ruv <- function(Y, X, ctl = NULL, k = NULL,
         message("No control genes provided so just doing OLS then ASH.")
         k <- 0
         ctl <- rep(FALSE, length = ncol(Y))
+        do_ols <- TRUE
+    } else {
+        do_ols <- FALSE
     }
 
     assertthat::assert_that(is.matrix(Y))
@@ -205,7 +208,7 @@ ash_ruv <- function(Y, X, ctl = NULL, k = NULL,
 
     assertthat::assert_that(k + ncol(X) < nrow(X))
 
-    if (k >= sum(ctl) & k != 0) {
+    if (k >= sum(ctl) & !do_ols) {
         stop("k is larger than the number of control genes so model not identified.\nReduce k or increase the number of control genes.\nYou can also try out succotashr. To install succotashr, run in R:\n    install.packages(\"devtools\")\n    devtools::install_github(\"dcgerard/succotashr\")")
     }
 
@@ -277,7 +280,7 @@ ash_ruv <- function(Y, X, ctl = NULL, k = NULL,
     }
 
     ## similar to MLE to UMVUE adjustment, divide by degrees of freedom.
-    if (sum(ctl) != 0) {
+    if (!do_ols) {
         multiplier <- mean(resid_mat ^ 2 / sig_diag_scaled[ctl]) *
             nrow(X) / (nrow(X) - k - ncol(X))
     } else {
