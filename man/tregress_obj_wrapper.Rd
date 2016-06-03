@@ -28,4 +28,7 @@ of the t-distribution.}
 This is mostly so I can run \code{stats::optim} with just
 \code{lambda}.
 }
+\author{
+David Gerard
+}
 

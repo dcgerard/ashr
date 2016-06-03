@@ -285,7 +285,7 @@ ash_ruv <- function(Y, X, ctl = NULL, k = NULL,
         betahat   <- betahat_ols
     }
 
-    ## similar to MLE to UMVUE adjustment, divide by degrees of freedom.
+    ## Gaussian MLE of variance inflation parameter.
     if (!do_ols) {
         multiplier <- mean(resid_mat ^ 2 / sig_diag_scaled[ctl])
     } else {
@@ -306,6 +306,9 @@ ash_ruv <- function(Y, X, ctl = NULL, k = NULL,
     ## parameter using control genes.
     if (likelihood == "t") {
         if (k != 0) {
+            if (!gls) {
+                message("gls = FALSE not supported for t-likelihood, using gls = TRUE.")
+            }
             alphac <- alpha_scaled[ctl, , drop = FALSE]
             tout <- tregress_em(Y = Yc, alpha = alphac,
                                 sig_diag = sig_diag_scaled[ctl],
@@ -554,6 +557,8 @@ tregress_obj <- function(zlambda, Y, alpha, sig_diag, nu) {
 #'
 #' This is mostly so I can run \code{stats::optim} with just
 #' \code{lambda}.
+#'
+#' @author David Gerard
 #'
 #' @inheritParams tregress_obj
 #' @param lambda A positive numeric. The variance inflation parameter.

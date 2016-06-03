@@ -30,7 +30,7 @@ installed, then this function will estimate the number of
 hidden confounders using the methods of Buja and Eyuboglu
 (1992).}
 
-\item{cov_of_interest}{A positive integer. The column number of
+\item{cov_of_interest}{A positive integer. The column number of the
 covariate in X whose coefficients you want to apply ASH to.}
 
 \item{ash_args}{A list of arguments to pass to ash. See
@@ -44,7 +44,7 @@ will be unchanged.}
 \item{gls}{A logical. Should we use generalized least squares
 (\code{TRUE}) or ordinary least squares (\code{FALSE}) for
 estimating the confounders? The OLS version is equivalent to
-using RUV to estimate the confounders.}
+using RUV4 to estimate the confounders.}
 
 \item{likelihood}{Either \code{"normal"} or \code{"t"}. If
 \code{likelihood = "t"}, then the user may provide the degrees
