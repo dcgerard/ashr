@@ -119,26 +119,47 @@ test_that("ash_ruv and ash_ruv_old give same results when using ols", {
 )
 
 
-test_that("t-likelihood in ash_ruv works", {
-    set.seed(68)
-    n <- 10
-    p <- 20
-    k <- 3
-    cov_of_interest <- k
-    X <- matrix(stats::rnorm(n * k), nrow = n)
-    beta <- matrix(stats::rnorm(k * p), nrow = k)
-    beta[, 1:round(p/2)] <- 0
-    ctl <- beta[cov_of_interest, ] == 0
-    E <- matrix(stats::rnorm(n * p), nrow = n)
-    Y <- X %*% beta + E
-    num_sv <- 2
+test_that("tregress_em increases likelihood", {
+    set.seed(871)
+    p  <- 21
+    k  <- 5
+    nu <- 5
 
+    alpha <- matrix(stats::rnorm(p * k), nrow = p)
+    Z     <- matrix(stats::rnorm(k), ncol = 1)
+    sig_diag <- stats::rchisq(p, df = 2)
+    E <- matrix(stats::rt(p, df = nu), ncol = 1) * sqrt(sig_diag)
 
-    ashout <- ash_ruv(Y = Y, X = X, ctl = ctl, k = num_sv,
-                      include_intercept = TRUE, likelihood = "t")
-    ashoutnorm <- ash_ruv(Y = Y, X = X, ctl = ctl, k = num_sv,
-                          include_intercept = TRUE, likelihood = "normal")
-    expect_true(all(ashout$fitted.g$pi != ashoutnorm$fitted.g$pi))
+    Y <- alpha %*% Z + E
+
+    lambda_init <- 1
+    Z_init <- rep(0, length = ncol(alpha))
+    zlambda <- c(Z_init, lambda_init)
+
+    itermax <- 20
+    llike_vec <- rep(NA, length = itermax)
+    llike_vec[1] <- tregress_obj(zlambda = zlambda, Y = Y, alpha = alpha,
+                                 sig_diag = sig_diag, nu = nu)
+
+    for (index in 2:itermax) {
+        zlambda <- tregress_fix(zlambda = zlambda, Y = Y, alpha = alpha,
+                                sig_diag = sig_diag, nu = nu)
+        llike_vec[index] <- tregress_obj(zlambda = zlambda, Y = Y, alpha = alpha,
+                                         sig_diag = sig_diag, nu = nu)
+    }
+    expect_true(all(llike_vec[2:length(llike_vec)] >= llike_vec[1:(length(llike_vec) - 1)]))
+
+    oout <- stats::optim(par = c(Z_init, lambda_init), fn = tregress_obj, Y = Y,
+                         alpha = alpha, sig_diag = sig_diag, nu = nu,
+                         control = list(fnscale = -1, maxit = 5000))
+
+    expect_equal(llike_vec[index], oout$value, tol = 10 ^ -5)
+
+    tregress_obj(zlambda = oout$par, Y = Y, alpha = alpha, sig_diag = sig_diag, nu = nu)
+    tregress_obj(zlambda = zlambda, Y = Y, alpha = alpha, sig_diag = sig_diag, nu = nu)
+
+    expect_equal(zlambda, oout$par, tol = 10 ^ -3)
+
 }
 )
 
@@ -172,5 +193,49 @@ test_that("when given no control genes, same as OLS + ASH", {
     expect_equal(ruvash_out$ruv$sebetahat, ruvash_out$ruv$sebetahat_ols)
     expect_equal(ruvash_out$ruv$sebetahat, sebetahat_ols)
     expect_equal(ash_out$fitted.g, ruvash_out$fitted.g)
+}
+)
+
+
+test_that("ruvash with t-likelihood converges to ruvash with normal likelihood", {
+    set.seed(31)
+    nseq <- c(11, 19, 59, 103)
+
+    p <- 23
+    k <- 3
+    num_sv <- 5
+
+    ## see if t results converge to normal results
+    tmult_vec <- rep(NA, length = length(nseq))
+    nmult_vec <- rep(NA, length = length(nseq))
+
+    tz_mat <- matrix(NA, nrow = num_sv, ncol = length(nseq))
+    nz_mat <- matrix(NA, nrow = num_sv, ncol = length(nseq))
+
+    for (index in 1:length(nseq)) {
+        n <- nseq[index]
+        cov_of_interest <- k
+        X <- matrix(stats::rnorm(n * k), nrow = n)
+        beta <- matrix(stats::rnorm(k * p), nrow = k)
+        beta[, 1:round(p/2)] <- 0
+        ctl <- beta[cov_of_interest, ] == 0
+        E <- matrix(stats::rnorm(n * p), nrow = n)
+        Y <- X %*% beta + E
+
+
+        ruvash_t <- ash_ruv(Y = Y, X = X, ctl = ctl, k = num_sv, cov_of_interest = k,
+                            include_intercept = FALSE, likelihood = "t")
+        ruvash_n <- ash_ruv(Y = Y, X = X, ctl = ctl, k = num_sv, cov_of_interest = k,
+                            include_intercept = FALSE, likelihood = "normal")
+        tmult_vec[index] <- ruvash_t$ruv$multiplier
+        nmult_vec[index] <- ruvash_n$ruv$multiplier
+        tz_mat[, index]  <- ruvash_t$ruv$Z1
+        nz_mat[, index]  <- ruvash_n$ruv$Z1
+    }
+
+    err <- colSums((tz_mat - nz_mat) ^ 2)
+    expect_true(all(err[1:(length(err) - 1)] > err[2:length(err)]))
+    merr <- (tmult_vec - nmult_vec) ^ 2
+    expect_true(all(merr[1:(length(merr) - 1)] > merr[2:length(merr)]))
 }
 )

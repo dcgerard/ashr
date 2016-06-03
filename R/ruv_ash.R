@@ -39,7 +39,7 @@
 #'     installed, then this function will estimate the number of
 #'     hidden confounders using the methods of Buja and Eyuboglu
 #'     (1992).
-#' @param cov_of_interest A positive integer. The column number of
+#' @param cov_of_interest A positive integer. The column number of the
 #'     covariate in X whose coefficients you want to apply ASH to.
 #' @param ctl A vector of logicals of length \code{ncol(Y)}. If
 #'     position i is \code{TRUE} then position i is considered a
@@ -55,7 +55,7 @@
 #' @param gls A logical. Should we use generalized least squares
 #'     (\code{TRUE}) or ordinary least squares (\code{FALSE}) for
 #'     estimating the confounders? The OLS version is equivalent to
-#'     using RUV to estimate the confounders.
+#'     using RUV4 to estimate the confounders.
 #' @param likelihood Either \code{"normal"} or \code{"t"}. If
 #'     \code{likelihood = "t"}, then the user may provide the degrees
 #'     of freedom by including a \code{df} element in
@@ -121,6 +121,11 @@
 #'     \code{fnorm_x} A numeric. This is the diagonal element of
 #'     \code{t(X) \%*\% X} that corresponds to the covariate of
 #'     interest. Returned mostly for debugging reasons and may be
+#'     removed in the future.
+#'
+#'     \code{Z1} A matrix of numerics of length 1. This is the
+#'     estimated confounders (after a rotation). Not useful on it's
+#'     own and is mostly returned for debugging purposes. It may be
 #'     removed in the future.
 #'
 #' @export
@@ -275,31 +280,61 @@ ash_ruv <- function(Y, X, ctl = NULL, k = NULL,
         resid_mat <- Yc - alphac %*% Z1
         betahat <- betahat_ols - alpha_scaled %*% Z1
     } else {
+        Z1        <- NULL
         resid_mat <- Yc
-        betahat <- betahat_ols
+        betahat   <- betahat_ols
     }
 
     ## similar to MLE to UMVUE adjustment, divide by degrees of freedom.
     if (!do_ols) {
-        multiplier <- mean(resid_mat ^ 2 / sig_diag_scaled[ctl]) *
-            nrow(X) / (nrow(X) - k - ncol(X))
+        multiplier <- mean(resid_mat ^ 2 / sig_diag_scaled[ctl])
     } else {
         multiplier <- 1
     }
 
-    ## run ASH
-    sebetahat <- sqrt(sig_diag_scaled * multiplier)
 
-    ash_args$betahat   <- c(betahat)
-    ash_args$sebetahat <- sebetahat
-
+    ## Assign ash_args$df so can use in t-likelihood later.
     if (likelihood == "t" & is.null(ash_args$df)) {
         ash_args$df <- nrow(X) - k - ncol(X)
     } else if (likelihood == "normal" & !is.null(ash_args$df)) {
         message("likelihood = \"normal\" but ash_args$df not NULL. Ignoring ash_args$df.")
         ash_args$df <- NULL
-    } ## else, ash_args$df = NULL gives normal likelihood
+    }
 
+
+    ## T-likelihood regression and estimate variance inflation
+    ## parameter using control genes.
+    if (likelihood == "t") {
+        if (k != 0) {
+            alphac <- alpha_scaled[ctl, , drop = FALSE]
+            tout <- tregress_em(Y = Yc, alpha = alphac,
+                                sig_diag = sig_diag_scaled[ctl],
+                                nu = ash_args$df, lambda_init = multiplier,
+                                Z_init = Z1)
+            Z1         <- tout$Z
+            betahat    <- betahat_ols - alpha_scaled %*% Z1
+            multiplier <- tout$lambda
+        } else if (k == 0 & !do_ols) {
+            tout <- stats::optim(par = multiplier, fn = tregress_obj_wrapper,
+                                 Z = matrix(0, nrow = 1, ncol = 1), Y = Yc,
+                                 alpha = matrix(0, nrow = nrow(Yc), ncol = 1),
+                                 sig_diag = sig_diag_scaled[ctl],
+                                 nu = ash_args$df, method = "Brent",
+                                 lower = 0, upper = 10,
+                                 control = list(fnscale = -1))
+            multiplier <- tout$par
+        }
+    }
+
+    ## Similar to MLE to UMVUE adjustment, divide by degrees of freedom.
+    if (!do_ols) {
+        multiplier <- multiplier * nrow(X) / (nrow(X) - k - ncol(X))
+    }
+
+    ## run ASH
+    sebetahat <- sqrt(sig_diag_scaled * multiplier)
+    ash_args$betahat   <- c(betahat)
+    ash_args$sebetahat <- sebetahat
     ash_out <- do.call(what = ash.workhorse, args = ash_args)
 
     ## Output frequentist values.
@@ -313,10 +348,10 @@ ash_ruv <- function(Y, X, ctl = NULL, k = NULL,
     ash_out$ruv$pvalues       <- 2 * (stats::pt(q = -abs(ash_out$ruv$tstats),
                                                 df = nrow(X) - k - ncol(X)))
     ash_out$ruv$alphahat      <- alpha
-    ash_out$input             <- ash_args
+    ash_out$ruv$input         <- ash_args
     ash_out$ruv$sigma2        <- sig_diag
     ash_out$ruv$fnorm_x       <- fnorm_x
-
+    ash_out$ruv$Z1            <- Z1
 
     return(ash_out)
 }
@@ -325,10 +360,9 @@ ash_ruv <- function(Y, X, ctl = NULL, k = NULL,
 
 #' Basic PCA.
 #'
-#' Most of this code is from the package \code{cate}. I corrected some
-#' problems. Specifically, I allow \code{r = 0} and I included a few
-#' needed \code{drop = FALSE} terms. I also divide by \code{nrow(Y) -
-#' r} rather than by \code{nrow(Y)}.
+#' Glorified truncated SVD. The variance estimates are just the
+#' column-wise mean-squares, except I divide by \code{nrow(Y) - r}
+#' rather than by \code{nrow(Y)}. I allow \code{r = 0}.
 #'
 #'
 #' @param Y A matrix of numerics. The data.
@@ -336,6 +370,11 @@ ash_ruv <- function(Y, X, ctl = NULL, k = NULL,
 #'
 #' @author David Gerard
 pca_naive <- function (Y, r) {
+
+    assertthat::assert_that(is.matrix(Y))
+    assertthat::are_equal(length(r), 1)
+    assertthat::assert_that(r >= 0 & r < min(dim(Y)))
+
     if (r == 0) {
         Gamma <- NULL
         Z <- NULL
@@ -348,6 +387,182 @@ pca_naive <- function (Y, r) {
         Sigma <- apply(Y - Z %*% t(Gamma), 2, function(x) sum(x ^ 2)) / (nrow(Y) - r)
     }
     return(list(alpha = Gamma, Z = Z, sig_diag = Sigma))
+}
+
+#' EM algorithm to find regression coefficients using t-likelihood
+#' when variances are known up to scale.
+#'
+#' When using a
+#' \href{https://en.wikipedia.org/wiki/Student%27s_t-distribution#Non-standardized_Student.27s_t-distribution}{non-standard
+#' t-distribution} for your regression likelihood, there is a simple
+#' latent variable representation that allows us to develop an EM
+#' algorithm. This is a very similar procedure to Lange et al (1989).
+#'
+#'
+#' @param Y A matrix of numerics with one column. The response
+#'     variables.
+#' @param alpha A matrix of numerics, the covariates. It must be that
+#'     \code{nrow(Y)} is equal to \code{nrow(alpha)}.
+#' @param sig_diag A vector of numerics. The variances of the elements
+#'     in \code{Y}, but only assumed to be known up to a scaling
+#'     factor.
+#' @param nu A positive numeric scalar. The known degrees of freedom
+#'     of the t-distribution.
+#' @param lambda_init A positive numeric scalar. The initial value of
+#'     the variance inflation parameter. Defaults to the estimate
+#'     under Gaussian errors.
+#' @param Z_init A matrix of numerics with one column. The initial
+#'     value of the coefficients of \code{alpha}. Defaults to the
+#'     estimate under Gaussian errors.
+#' @param control_args A list of control arguments for the EM
+#'     algorithm that is passed to SQUAREM.
+#'
+#' @author David Gerard
+#'
+#' @references Lange, Kenneth L., Roderick JA Little, and Jeremy MG
+#'     Taylor. "Robust statistical modeling using the t distribution."
+#'     Journal of the American Statistical Association 84.408 (1989):
+#'     881-896.
+#'
+#' @seealso \code{\link{tregress_obj}} for the objective function that
+#'     this function maximizes, \code{\link{tregress_fix}} for the
+#'     fixed point iteration that this function calls.
+tregress_em <- function(Y, alpha, sig_diag, nu, lambda_init = NULL,
+                         Z_init = NULL, control_args = list()) {
+
+    assertthat::assert_that(is.matrix(Y))
+    assertthat::assert_that(is.matrix(alpha))
+    assertthat::assert_that(is.vector(sig_diag))
+    assertthat::assert_that(all(sig_diag > 0))
+    assertthat::assert_that(length(nu) == 1 | length(nu) == nrow(Y))
+    assertthat::assert_that(all(nu > 0))
+    assertthat::assert_that(is.list(control_args))
+    assertthat::are_equal(nrow(Y), nrow(alpha))
+    assertthat::are_equal(nrow(Y), length(sig_diag))
+
+    sig_diag_inv <- 1 / sig_diag
+    if (is.null(Z_init)) {
+        Z_init <- crossprod(solve(crossprod(alpha, sig_diag_inv * alpha)),
+                            crossprod(alpha, sig_diag_inv * Y))
+    }
+
+    resid_init <- Y - alpha %*% Z_init
+
+    if (is.null(lambda_init)) {
+        lambda_init <- mean(resid_init ^ 2 * sig_diag_inv)
+    }
+
+    assertthat::assert_that(is.matrix(Z_init))
+    assertthat::are_equal(ncol(alpha), nrow(Z_init))
+    assertthat::are_equal(length(lambda_init), 1)
+    assertthat::assert_that(lambda_init > 0)
+
+    zlambda <- c(Z_init, lambda_init)
+
+    sqout <- SQUAREM::squarem(par = zlambda, fixptfn = tregress_fix,
+                              objfn = tregress_obj, Y = Y, alpha = alpha,
+                              sig_diag = sig_diag, nu = nu,
+                              control = control_args)
+
+    Z <- sqout$par[-length(sqout$par)]
+    lambda <- sqout$par[length(sqout$par)]
+
+    return(list(Z = Z, lambda = lambda))
+}
+
+#' Fixed point iteration for EM algorithm for regression with
+#' t-errors where the variance is known up to scale.
+#'
+#' @inheritParams tregress_em
+#' @param zlambda A vector containing the current estimates of the
+#'     coefficients (Z) and the variance inflation parameter
+#'     (lambda). The last element is lambda and all other elements are
+#'     Z.
+#'
+#' @author David Gerard
+#'
+#' @seealso \code{\link{tregress_em}} where this function is called,
+#'     \code{\link{tregress_obj}} for the objective function that this
+#'     fixed-point iteration increases.
+#'
+tregress_fix <- function(zlambda, Y, alpha, sig_diag, nu) {
+
+    assertthat::assert_that(is.vector(zlambda))
+    assertthat::assert_that(is.matrix(Y))
+    assertthat::assert_that(is.matrix(alpha))
+    assertthat::assert_that(is.vector(sig_diag))
+    assertthat::are_equal(ncol(alpha), length(zlambda) - 1)
+    assertthat::are_equal(nrow(alpha), nrow(Y))
+    assertthat::assert_that(length(nu) == 1 | length(nu) == nrow(Y))
+    assertthat::assert_that(all(nu > 0))
+
+    Z <- matrix(zlambda[-length(zlambda)], ncol = 1)
+    lambda <- zlambda[length(zlambda)]
+
+    resid_vec <- Y - alpha %*% Z
+
+    wvec <- (nu + 1) / (resid_vec ^ 2 / (lambda * sig_diag) + nu)
+
+    wsig <- c(wvec / sig_diag)
+
+    Znew <- crossprod(solve(crossprod(alpha, wsig * alpha)),
+                            crossprod(alpha, wsig * Y))
+
+    resid_new <- Y - alpha %*% Znew
+
+    lambda_new <- mean(resid_new ^ 2 * wsig)
+
+    zlambda_new <- c(Znew, lambda_new)
+
+    return(zlambda_new)
+
+}
+
+#' The likelihood for regression with t-errors where the variance is
+#' known up to scale.
+#'
+#' @inheritParams tregress_fix
+#'
+#' @author David Gerard
+#'
+#' @seealso \code{\link{tregress_em}} where this function is called,
+#'     \code{\link{tregress_fix}} for the fixed point iteration that
+#'     increases this objective function.
+tregress_obj <- function(zlambda, Y, alpha, sig_diag, nu) {
+
+    assertthat::assert_that(is.vector(zlambda))
+    assertthat::assert_that(is.matrix(Y))
+    assertthat::assert_that(is.matrix(alpha))
+    assertthat::assert_that(is.vector(sig_diag))
+    assertthat::are_equal(ncol(alpha), length(zlambda) - 1)
+    assertthat::are_equal(nrow(alpha), nrow(Y))
+    assertthat::assert_that(length(nu) == 1 | length(nu) == nrow(Y))
+    assertthat::assert_that(all(nu > 0))
+
+    Z <- matrix(zlambda[-length(zlambda)], ncol = 1)
+    lambda <- zlambda[length(zlambda)]
+
+    standard_t<- (Y - alpha %*% Z) / sqrt(lambda * sig_diag)
+
+    llike <- sum(log(stats::dt(x = standard_t, df = nu))) -
+        length(sig_diag) * log(lambda) / 2 - sum(log(sig_diag)) / 2
+
+    return(llike)
+}
+
+#' Wrapper for \code{\link{tregress_obj}}.
+#'
+#' This is mostly so I can run \code{stats::optim} with just
+#' \code{lambda}.
+#'
+#' @inheritParams tregress_obj
+#' @param lambda A positive numeric. The variance inflation parameter.
+#' @param Z A matrix of numerics with one column. The coefficients.
+tregress_obj_wrapper <- function(lambda, Z, Y, alpha, sig_diag, nu) {
+    zlambda <- c(Z, lambda)
+    llike <- tregress_obj(zlambda = zlambda, Y = Y, alpha = alpha,
+                          sig_diag = sig_diag, nu = nu)
+    return(llike)
 }
 
 

@@ -12,10 +12,9 @@ pca_naive(Y, r)
 \item{r}{the rank.}
 }
 \description{
-Most of this code is from the package \code{cate}. I corrected some
-problems. Specifically, I allow \code{r = 0} and I included a few
-needed \code{drop = FALSE} terms. I also divide by \code{nrow(Y) -
-r} rather than by \code{nrow(Y)}.
+Glorified truncated SVD. The variance estimates are just the
+column-wise mean-squares, except I divide by \code{nrow(Y) - r}
+rather than by \code{nrow(Y)}. I allow \code{r = 0}.
 }
 \author{
 David Gerard

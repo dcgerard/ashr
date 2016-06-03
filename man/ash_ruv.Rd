@@ -115,6 +115,11 @@ Except for the list \code{ruv}, the values returned are the
     \code{t(X) \%*\% X} that corresponds to the covariate of
     interest. Returned mostly for debugging reasons and may be
     removed in the future.
+
+    \code{Z1} A matrix of numerics of length 1. This is the
+    estimated confounders (after a rotation). Not useful on it's
+    own and is mostly returned for debugging purposes. It may be
+    removed in the future.
 }
 \description{
 This function will perform a variant of Removing Unwanted Variation
