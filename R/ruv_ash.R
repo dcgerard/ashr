@@ -205,7 +205,7 @@ ash_ruv <- function(Y, X, ctl = NULL, k = NULL,
 
     assertthat::assert_that(k + ncol(X) < nrow(X))
 
-    if (k > sum(ctl)) {
+    if (k >= sum(ctl) & k != 0) {
         stop("k is larger than the number of control genes so model not identified.\nReduce k or increase the number of control genes.\nYou can also try out succotashr. To install succotashr, run in R:\n    install.packages(\"devtools\")\n    devtools::install_github(\"dcgerard/succotashr\")")
     }
 
