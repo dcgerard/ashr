@@ -141,3 +141,36 @@ test_that("t-likelihood in ash_ruv works", {
     expect_true(all(ashout$fitted.g$pi != ashoutnorm$fitted.g$pi))
 }
 )
+
+test_that("when given no control genes, same as OLS + ASH", {
+    set.seed(68)
+    n <- 10
+    p <- 20
+    k <- 3
+    cov_of_interest <- k
+    X <- matrix(stats::rnorm(n * k), nrow = n)
+    beta <- matrix(stats::rnorm(k * p), nrow = k)
+    beta[, 1:round(p/2)] <- 0
+    ctl <- NULL
+    E <- matrix(stats::rnorm(n * p), nrow = n)
+    Y <- X %*% beta + E
+    num_sv <- 2
+
+    ruvash_out <- ash_ruv(Y = Y, X = X, ctl = ctl, k = num_sv,
+                      include_intercept = FALSE, likelihood = "normal",
+                      gls = FALSE)
+
+    xtxi <- solve(t(X) %*% X)
+    betahat_ols <-  xtxi %*% t(X) %*% Y
+    sigma2 <- colSums((Y - X %*% betahat_ols) ^ 2) / (n - k)
+    sebetahat_ols <- sqrt(sigma2 * xtxi[cov_of_interest, cov_of_interest])
+    ash_out <- ashr::ash(betahat = betahat_ols[cov_of_interest, ],
+                         sebetahat = sebetahat_ols)
+
+    expect_equal(c(ruvash_out$ruv$betahat_ols), betahat_ols[cov_of_interest, ])
+    expect_equal(c(ruvash_out$ruv$betahat), betahat_ols[cov_of_interest, ])
+    expect_equal(ruvash_out$ruv$sebetahat, ruvash_out$ruv$sebetahat_ols)
+    expect_equal(ruvash_out$ruv$sebetahat, sebetahat_ols)
+    expect_equal(ash_out$fitted.g, ruvash_out$fitted.g)
+}
+)

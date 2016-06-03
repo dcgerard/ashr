@@ -5,9 +5,10 @@
 \title{Use control genes to estimate hidden confounders and variance
 inflation parameter, then run ASH.}
 \usage{
-ash_ruv(Y, X, ctl, k = NULL, cov_of_interest = ncol(X), ash_args = list(),
-  include_intercept = TRUE, gls = TRUE, likelihood = c("normal", "t"),
-  limmashrink = FALSE, fa_func = pca_naive, fa_args = list())
+ash_ruv(Y, X, ctl = NULL, k = NULL, cov_of_interest = ncol(X),
+  ash_args = list(), include_intercept = TRUE, gls = TRUE,
+  likelihood = c("normal", "t"), limmashrink = FALSE, fa_func = pca_naive,
+  fa_args = list())
 }
 \arguments{
 \item{Y}{A matrix of numerics. These are the response variables
@@ -19,7 +20,9 @@ genes.}
 
 \item{ctl}{A vector of logicals of length \code{ncol(Y)}. If
 position i is \code{TRUE} then position i is considered a
-negative control.}
+negative control. If \code{ctl = NULL} (the default) then ASH
+will be run on the OLS estimates and corresponding standard
+errors.}
 
 \item{k}{A non-negative integer.The number of unobserved
 confounders. If not specified and the R package sva is
@@ -107,6 +110,11 @@ Except for the list \code{ruv}, the values returned are the
 
     \code{sigma2} A vector of positive numerics. The estimates of
     the variances.
+
+    \code{fnorm_x} A numeric. This is the diagonal element of
+    \code{t(X) \%*\% X} that corresponds to the covariate of
+    interest. Returned mostly for debugging reasons and may be
+    removed in the future.
 }
 \description{
 This function will perform a variant of Removing Unwanted Variation

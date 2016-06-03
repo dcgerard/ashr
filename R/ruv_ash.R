@@ -43,7 +43,9 @@
 #'     covariate in X whose coefficients you want to apply ASH to.
 #' @param ctl A vector of logicals of length \code{ncol(Y)}. If
 #'     position i is \code{TRUE} then position i is considered a
-#'     negative control.
+#'     negative control. If \code{ctl = NULL} (the default) then ASH
+#'     will be run on the OLS estimates and corresponding standard
+#'     errors.
 #' @param ash_args A list of arguments to pass to ash. See
 #'     \code{\link{ash.workhorse}} for details.
 #' @param include_intercept A logical. If \code{TRUE}, then it will
@@ -116,6 +118,11 @@
 #'     \code{sigma2} A vector of positive numerics. The estimates of
 #'     the variances.
 #'
+#'     \code{fnorm_x} A numeric. This is the diagonal element of
+#'     \code{t(X) \%*\% X} that corresponds to the covariate of
+#'     interest. Returned mostly for debugging reasons and may be
+#'     removed in the future.
+#'
 #' @export
 #'
 #' @author David Gerard
@@ -143,11 +150,18 @@
 #'     "Confounder Adjustment in Multiple Hypotheses Testing."
 #'     arXiv preprint arXiv:1508.04178 (2015).
 #'
-ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X),
-                    ash_args = list(), include_intercept = TRUE,
-                    gls = TRUE, likelihood = c("normal", "t"),
+ash_ruv <- function(Y, X, ctl = NULL, k = NULL,
+                    cov_of_interest = ncol(X), ash_args = list(),
+                    include_intercept = TRUE, gls = TRUE,
+                    likelihood = c("normal", "t"),
                     limmashrink = FALSE, fa_func = pca_naive,
                     fa_args = list()) {
+
+    if (is.null(ctl)) {
+        message("No control genes provided so just doing OLS then ASH.")
+        k <- 0
+        ctl <- rep(FALSE, length = ncol(Y))
+    }
 
     assertthat::assert_that(is.matrix(Y))
     assertthat::assert_that(is.matrix(X))
@@ -191,7 +205,7 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X),
 
     assertthat::assert_that(k + ncol(X) < nrow(X))
 
-    if (k >= sum(ctl)) {
+    if (k > sum(ctl)) {
         stop("k is larger than the number of control genes so model not identified.\nReduce k or increase the number of control genes.\nYou can also try out succotashr. To install succotashr, run in R:\n    install.packages(\"devtools\")\n    devtools::install_github(\"dcgerard/succotashr\")")
     }
 
@@ -246,13 +260,14 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X),
     ## Use control genes to jointly estimate Z1 and variance scaling parameter.
     Yc <- betahat_ols[ctl, , drop = FALSE]
     if (k != 0) {
-        alphac     <- alpha_scaled[ctl, , drop = FALSE]
-        Sigmac_inv <- diag(1 / sig_diag_scaled[ctl])
+        alphac       <- alpha_scaled[ctl, , drop = FALSE]
+        sig_diag_inv <- 1 / sig_diag_scaled[ctl]
         if (gls) {
-            Z1 <- solve(t(alphac) %*% Sigmac_inv %*% alphac) %*% t(alphac) %*%
-                Sigmac_inv %*% Yc
+            Z1 <- crossprod(solve(crossprod(alphac, sig_diag_inv * alphac)),
+                            crossprod(alphac, sig_diag_inv * Yc))
         } else {
-            Z1 <- solve(t(alphac) %*% alphac) %*% t(alphac) %*% Yc
+            Z1 <- crossprod(solve(crossprod(alphac, alphac)),
+                            crossprod(alphac, Yc))
         }
         resid_mat <- Yc - alphac %*% Z1
         betahat <- betahat_ols - alpha_scaled %*% Z1
@@ -262,8 +277,12 @@ ash_ruv <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X),
     }
 
     ## similar to MLE to UMVUE adjustment, divide by degrees of freedom.
-    multiplier <- mean(resid_mat ^ 2 / sig_diag_scaled[ctl]) *
-        nrow(X) / (nrow(X) - k - ncol(X))
+    if (sum(ctl) != 0) {
+        multiplier <- mean(resid_mat ^ 2 / sig_diag_scaled[ctl]) *
+            nrow(X) / (nrow(X) - k - ncol(X))
+    } else {
+        multiplier <- 1
+    }
 
     ## run ASH
     sebetahat <- sqrt(sig_diag_scaled * multiplier)
