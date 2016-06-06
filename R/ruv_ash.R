@@ -77,6 +77,9 @@
 #'     column-wise mean square.
 #' @param fa_args A list. Additional arguments you want to pass to
 #'     fa_func.
+#' @param posthoc_inflate A logical. Should we multiply the estimate
+#'     of the variance inflation parameter by \code{nrow(X) / (nrow(X)
+#'     - k - ncol(X))} (\code{TRUE}) or not (\code{FALSE})?
 #'
 #'
 #' @return Except for the list \code{ruv}, the values returned are the
@@ -156,11 +159,11 @@
 #'     arXiv preprint arXiv:1508.04178 (2015).
 #'
 ash_ruv <- function(Y, X, ctl = NULL, k = NULL,
-                    cov_of_interest = ncol(X), ash_args = list(),
+                    cov_of_interest = ncol(X),
+                    likelihood = c("normal", "t"), ash_args = list(),
+                    posthoc_inflate = TRUE, limmashrink = FALSE,
                     include_intercept = TRUE, gls = TRUE,
-                    likelihood = c("normal", "t"),
-                    limmashrink = FALSE, fa_func = pca_naive,
-                    fa_args = list()) {
+                    fa_func = pca_naive, fa_args = list()) {
 
     if (is.null(ctl)) {
         message("No control genes provided so just doing OLS then ASH.")
@@ -179,6 +182,7 @@ ash_ruv <- function(Y, X, ctl = NULL, k = NULL,
     assertthat::assert_that(cov_of_interest >= 1 & cov_of_interest <= ncol(X))
     assertthat::assert_that(is.logical(gls))
     assertthat::assert_that(is.logical(include_intercept))
+    assertthat::assert_that(is.logical(posthoc_inflate))
     assertthat::assert_that(is.list(ash_args))
     assertthat::assert_that(is.null(ash_args$betahat))
     assertthat::assert_that(is.null(ash_args$sebetahat))
@@ -330,7 +334,7 @@ ash_ruv <- function(Y, X, ctl = NULL, k = NULL,
     }
 
     ## Similar to MLE to UMVUE adjustment, divide by degrees of freedom.
-    if (!do_ols) {
+    if (!do_ols & posthoc_inflate) {
         multiplier <- multiplier * nrow(X) / (nrow(X) - k - ncol(X))
     }
 

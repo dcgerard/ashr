@@ -6,9 +6,9 @@
 inflation parameter, then run ASH.}
 \usage{
 ash_ruv(Y, X, ctl = NULL, k = NULL, cov_of_interest = ncol(X),
-  ash_args = list(), include_intercept = TRUE, gls = TRUE,
-  likelihood = c("normal", "t"), limmashrink = FALSE, fa_func = pca_naive,
-  fa_args = list())
+  likelihood = c("normal", "t"), ash_args = list(),
+  posthoc_inflate = TRUE, limmashrink = FALSE, include_intercept = TRUE,
+  gls = TRUE, fa_func = pca_naive, fa_args = list())
 }
 \arguments{
 \item{Y}{A matrix of numerics. These are the response variables
@@ -33,8 +33,22 @@ hidden confounders using the methods of Buja and Eyuboglu
 \item{cov_of_interest}{A positive integer. The column number of the
 covariate in X whose coefficients you want to apply ASH to.}
 
+\item{likelihood}{Either \code{"normal"} or \code{"t"}. If
+\code{likelihood = "t"}, then the user may provide the degrees
+of freedom by including a \code{df} element in
+\code{ash_args}. If \code{ash_args$df} is \code{NULL} then the
+degrees of freedom will be the sample size minus the number of
+covariates minus \code{k}.}
+
 \item{ash_args}{A list of arguments to pass to ash. See
 \code{\link{ash.workhorse}} for details.}
+
+\item{posthoc_inflate}{A logical. Should we multiply the estimate
+of the variance inflation parameter by \code{nrow(X) / (nrow(X)
+- k - ncol(X))} (\code{TRUE}) or not (\code{FALSE})?}
+
+\item{limmashrink}{A logical. Should we apply hierarchical
+shrinkage to the variances (\code{TRUE}) or not (\code{FALSE})?}
 
 \item{include_intercept}{A logical. If \code{TRUE}, then it will
 check \code{X} to see if it has an intercept term. If not, then
@@ -45,16 +59,6 @@ will be unchanged.}
 (\code{TRUE}) or ordinary least squares (\code{FALSE}) for
 estimating the confounders? The OLS version is equivalent to
 using RUV4 to estimate the confounders.}
-
-\item{likelihood}{Either \code{"normal"} or \code{"t"}. If
-\code{likelihood = "t"}, then the user may provide the degrees
-of freedom by including a \code{df} element in
-\code{ash_args}. If \code{ash_args$df} is \code{NULL} then the
-degrees of freedom will be the sample size minus the number of
-covariates minus \code{k}.}
-
-\item{limmashrink}{A logical. Should we apply hierarchical
-shrinkage to the variances (\code{TRUE}) or not (\code{FALSE})?}
 
 \item{fa_func}{A factor analysis function. The function must have
 as inputs a numeric matrix \code{Y} and a rank (numeric scalar)
