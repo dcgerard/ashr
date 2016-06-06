@@ -84,7 +84,7 @@ Except for the list \code{ruv}, the values returned are the
 
     \code{betahat_ols} A vector of numerics. The ordinary least
     squares estimates of the coefficients of the covariate of
-    interest. This is when not including the estiamted confounding
+    interest. This is when not including the estimated confounding
     variables.
 
     \code{sebetahat_ols} A vector of positive numerics. The
@@ -101,10 +101,18 @@ Except for the list \code{ruv}, the values returned are the
 
     \code{tstats} A vector of numerics. The t-statistics for
     testing against the null hypothesis of the coefficient of the
-    covariate of interest being zero.
+    covariate of interest being zero. This is after estimating the
+    variance inflation parameter but before the posthoc-inflation.
 
     \code{pvalues} A vector of numerics. The p-values of said test
     above.
+
+    \code{tstats_post} A vector of numerics. The posthoc-inflated
+    t-statistics for testing against the null hypothesis of the
+    coefficient of the covariate of interest being zero.
+
+    \code{pvalues_post} A vector of numerics. The the
+    posthoc-inflated p-values of said test above.
 
     \code{alphahat} A matrix of numerics. The estimates of the
     coefficients of the hidden confounders.

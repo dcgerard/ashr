@@ -90,7 +90,7 @@
 #'
 #'     \code{betahat_ols} A vector of numerics. The ordinary least
 #'     squares estimates of the coefficients of the covariate of
-#'     interest. This is when not including the estiamted confounding
+#'     interest. This is when not including the estimated confounding
 #'     variables.
 #'
 #'     \code{sebetahat_ols} A vector of positive numerics. The
@@ -107,10 +107,18 @@
 #'
 #'     \code{tstats} A vector of numerics. The t-statistics for
 #'     testing against the null hypothesis of the coefficient of the
-#'     covariate of interest being zero.
+#'     covariate of interest being zero. This is after estimating the
+#'     variance inflation parameter but before the posthoc-inflation.
 #'
 #'     \code{pvalues} A vector of numerics. The p-values of said test
 #'     above.
+#'
+#'     \code{tstats_post} A vector of numerics. The posthoc-inflated
+#'     t-statistics for testing against the null hypothesis of the
+#'     coefficient of the covariate of interest being zero.
+#'
+#'     \code{pvalues_post} A vector of numerics. The the
+#'     posthoc-inflated p-values of said test above.
 #'
 #'     \code{alphahat} A matrix of numerics. The estimates of the
 #'     coefficients of the hidden confounders.
@@ -335,24 +343,30 @@ ash_ruv <- function(Y, X, ctl = NULL, k = NULL,
 
     ## Similar to MLE to UMVUE adjustment, divide by degrees of freedom.
     if (!do_ols & posthoc_inflate) {
-        multiplier <- multiplier * nrow(X) / (nrow(X) - k - ncol(X))
+        multiplier_final <- multiplier * nrow(X) / (nrow(X) - k - ncol(X))
+    } else {
+        multiplier_final <- multiplier
     }
 
     ## run ASH
-    sebetahat <- sqrt(sig_diag_scaled * multiplier)
+    sebetahat <- sqrt(sig_diag_scaled * multiplier_final)
     ash_args$betahat   <- c(betahat)
     ash_args$sebetahat <- sebetahat
     ash_out <- do.call(what = ash.workhorse, args = ash_args)
 
     ## Output frequentist values.
     ash_out$ruv <- list()
-    ash_out$ruv$multiplier    <- multiplier
+    ash_out$ruv$multiplier    <- multiplier_final
     ash_out$ruv$betahat_ols   <- betahat_ols
     ash_out$ruv$sebetahat_ols <- sqrt(sig_diag_scaled)
     ash_out$ruv$betahat       <- betahat
     ash_out$ruv$sebetahat     <- sebetahat
-    ash_out$ruv$tstats        <- betahat / sebetahat
+    ash_out$ruv$tstats        <- betahat / sqrt(sig_diag_scaled * multiplier)
+    ash_out$ruv$tstats_post   <- betahat / sqrt(sig_diag_scaled * multiplier) *
+        sqrt(nrow(X) - k - ncol(X) / nrow(X))
     ash_out$ruv$pvalues       <- 2 * (stats::pt(q = -abs(ash_out$ruv$tstats),
+                                                df = nrow(X) - k - ncol(X)))
+    ash_out$ruv$pvalues_post  <- 2 * (stats::pt(q = -abs(ash_out$ruv$tstats_post),
                                                 df = nrow(X) - k - ncol(X)))
     ash_out$ruv$alphahat      <- alpha
     ash_out$ruv$input         <- ash_args
