@@ -363,7 +363,7 @@ ash_ruv <- function(Y, X, ctl = NULL, k = NULL,
     ash_out$ruv$sebetahat     <- sebetahat
     ash_out$ruv$tstats        <- betahat / sqrt(sig_diag_scaled * multiplier)
     ash_out$ruv$tstats_post   <- betahat / sqrt(sig_diag_scaled * multiplier) *
-        sqrt(nrow(X) - k - ncol(X) / nrow(X))
+        sqrt((nrow(X) - k - ncol(X)) / nrow(X))
     ash_out$ruv$pvalues       <- 2 * (stats::pt(q = -abs(ash_out$ruv$tstats),
                                                 df = nrow(X) - k - ncol(X)))
     ash_out$ruv$pvalues_post  <- 2 * (stats::pt(q = -abs(ash_out$ruv$tstats_post),
