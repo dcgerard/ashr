@@ -246,7 +246,7 @@ vlema <- function(Y, X, cov_of_interest = ncol(X),
 
     ash_args$betahat <- eout$coefficients[, cov_of_interest]
 
-    assertthat::are_equal(args_val$betahat / sebetahat_old,
+    assertthat::are_equal(ash_args$betahat / sebetahat_old,
                           eout$t[, cov_of_interest])
 
     ash_args$sebetahat <- sebetahat_old * multiplier
