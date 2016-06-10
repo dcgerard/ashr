@@ -4,6 +4,8 @@
 #'
 #' @inheritParams ash_ruv
 #'
+#' @author David Gerard
+#'
 #' @export
 ash_sva_mad <- function(Y, X, k = NULL,
                         cov_of_interest = ncol(X),
@@ -50,7 +52,8 @@ ash_sva_mad <- function(Y, X, k = NULL,
     X <- X[, c( (1:ncol(X))[-cov_of_interest], cov_of_interest), drop = FALSE]
     cov_of_interest <- ncol(X)
 
-    trash <- capture.output(svaout <- sva::sva(dat = t(as.matrix(Y)), mod = X, n.sv = k))
+    trash <- utils::capture.output(svaout <- sva::sva(dat = t(as.matrix(Y)),
+                                                      mod = X, n.sv = k))
     Xsv   <- cbind(X, svaout$sv)
 
     limout <- limma::lmFit(object = t(Y), design = Xsv)
@@ -66,16 +69,20 @@ ash_sva_mad <- function(Y, X, k = NULL,
 
     if (likelihood == "t") {
         ash_args$df <- nrow(Xsv) - ncol(Xsv)
-        multiplier <- mad(tstats, constant = 1 / qt(3 / 4, df = ash_args$df))
+        multiplier <- stats::mad(tstats, constant = 1 / stats::qt(3 / 4, df = ash_args$df))
     } else {
-        multiplier <- mad(tstats)
+        multiplier <- stats::mad(tstats)
     }
     ash_args$sebetahat <- sebetahat * multiplier
 
     ash_out <- do.call(what = ash, args = ash_args)
 
     tfinal <- tstats / multiplier
-    pfinal <- 2 * pt(-abs(tfinal), df = nrow(Xsv) - ncol(Xsv))
+    if (likelihood == "t") {
+        pfinal <- 2 * stats::pt(-abs(tfinal), df = nrow(Xsv) - ncol(Xsv))
+    } else {
+        pfinal <- 2 * stats::pnorm(-abs(tfinal))
+    }
 
     ash_out$cal               <- list()
     ash_out$cal$limma_fit     <- limout
@@ -97,6 +104,8 @@ ash_sva_mad <- function(Y, X, k = NULL,
 #' @inheritParams ash_ruv
 #' @param ruv_type Should we run RUV4 (\code{"ruv4"}) or RUV2
 #'     (\code{"ruv2"})?
+#'
+#' @author DAvid Gerard
 #'
 #' @export
 ash_ruv_mad <- function(Y, X, ctl, ruv_type = c("ruv4", "ruv2"),
@@ -170,16 +179,20 @@ ash_ruv_mad <- function(Y, X, ctl, ruv_type = c("ruv4", "ruv2"),
 
     if (likelihood == "t") {
         ash_args$df <- nrow(X) - ncol(X) - k
-        multiplier <- mad(ruvout$t, constant = 1 / qt(3 / 4, df = ash_args$df))
+        multiplier <- stats::mad(ruvout$t, constant = 1 / stats::qt(3 / 4, df = ash_args$df))
     } else {
-        multiplier <- mad(ruvout$t)
+        multiplier <- stats::mad(ruvout$t)
     }
     ash_args$sebetahat <- sebetahat_old * multiplier
 
     ash_out <- do.call(what = ash, args = ash_args)
 
     tfinal <- ruvout$t / multiplier
-    pfinal <- 2 * pt(-abs(tfinal), df = nrow(X) - ncol(X) - k)
+    if (likelihood == "t") {
+        pfinal <- 2 * stats::pt(-abs(tfinal), df = nrow(X) - ncol(X) - k)
+    } else {
+        pfinal <- 2 * stats::pnorm(-abs(tfinal))
+    }
 
     ash_out$cal               <- list()
     ash_out$cal$ruv_fit       <- ruvout
@@ -199,6 +212,8 @@ ash_ruv_mad <- function(Y, X, ctl, ruv_type = c("ruv4", "ruv2"),
 #' Yuck.
 #'
 #' @export
+#'
+#' @author David Gerard
 #'
 #' @inheritParams ash_ruv
 vlema <- function(Y, X, cov_of_interest = ncol(X),
@@ -246,13 +261,18 @@ vlema <- function(Y, X, cov_of_interest = ncol(X),
 
     if (likelihood == "t") {
         ash_args$df <- nrow(X) - ncol(X)
-        multiplier <- mad(told, constant = 1 / qt(3 / 4, df = ash_args$df))
+        multiplier <- stats::mad(told, constant = 1 / stats::qt(3 / 4, df = ash_args$df))
     } else {
-        multiplier <- mad(told)
+        multiplier <- stats::mad(told)
     }
 
     tstats  <- told / multiplier
-    pvalues <- 2 * pt(-abs(tstats), df = nrow(X) - ncol(X))
+
+    if (likelihood == "t") {
+        pvalues <- 2 * stats::pt(-abs(tstats), df = nrow(X) - ncol(X))
+    } else {
+        pvalues <- 2 * stats::pnorm(-abs(tstats))
+    }
 
     sebetahat_old <- eout$stdev.unscaled[, cov_of_interest]  * sqrt(eout$s2.post)
 

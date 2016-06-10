@@ -36,4 +36,7 @@ will be unchanged.}
 \description{
 Yuck.
 }
+\author{
+David Gerard
+}
 

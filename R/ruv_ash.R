@@ -149,9 +149,9 @@
 #'     Berkeley: Department of Statistics. University of California
 #'     (2013).
 #'
-#'     Andreas Buja and Nermin Eyuboglu. "Remarks on parallel
-#'     analysis." Multivariate behavioral research, 27(4):509–540,
-#'     1992.
+#'     Andreas Buja and Nermin
+#'     Eyuboglu. "Remarks on parallel analysis." Multivariate behavior
+#'     research, 27(4):509-540, 1992.
 #'
 #'     Bradley Efron
 #'     "Large-Scale Simultaneous Hypothesis Testing: The Choice of a Null
@@ -619,10 +619,9 @@ tregress_obj_wrapper <- function(lambda, Z, Y, alpha, sig_diag, nu) {
 #'
 #' @author David Gerard
 #'
-#' @references Andreas Buja and Nermin Eyuboglu. Remarks on parallel
-#'     analysis. Multivariate behavioral research, 27(4):509–540,
-#'     1992.
-#'
+#' @references Andreas Buja and Nermin
+#'     Eyuboglu. "Remarks on parallel analysis." Multivariate behavior
+#'     research, 27(4):509-540, 1992.
 ash_ruv_old <- function(Y, X, ctl, k = NULL, cov_of_interest = ncol(X),
                         ash_args = list(), include_intercept = TRUE) {
 

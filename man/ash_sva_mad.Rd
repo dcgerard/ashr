@@ -46,4 +46,7 @@ shrinkage to the variances (\code{TRUE}) or not (\code{FALSE})?}
 \description{
 Wrapper for SVA to ASH pipeline with MAD inflation.
 }
+\author{
+David Gerard
+}
 

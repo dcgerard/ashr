@@ -173,9 +173,9 @@ Gagnon-Bartsch, J., Laurent Jacob, and Terence
     Berkeley: Department of Statistics. University of California
     (2013).
 
-    Andreas Buja and Nermin Eyuboglu. "Remarks on parallel
-    analysis." Multivariate behavioral research, 27(4):509–540,
-    1992.
+    Andreas Buja and Nermin
+    Eyuboglu. "Remarks on parallel analysis." Multivariate behavior
+    research, 27(4):509-540, 1992.
 
     Bradley Efron
     "Large-Scale Simultaneous Hypothesis Testing: The Choice of a Null

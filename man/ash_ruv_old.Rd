@@ -44,8 +44,8 @@ This is the depricated version and may be removed at any moment.
 David Gerard
 }
 \references{
-Andreas Buja and Nermin Eyuboglu. Remarks on parallel
-    analysis. Multivariate behavioral research, 27(4):509–540,
-    1992.
+Andreas Buja and Nermin
+    Eyuboglu. "Remarks on parallel analysis." Multivariate behavior
+    research, 27(4):509-540, 1992.
 }
 
