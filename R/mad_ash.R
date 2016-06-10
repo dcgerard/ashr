@@ -63,13 +63,14 @@ ash_sva_mad <- function(Y, X, k = NULL,
     }
 
     tstats <- ash_args$betahat / sebetahat
-    multiplier <- mad(tstats)
-
-    ash_args$sebetahat <- sebetahat * multiplier
 
     if (likelihood == "t") {
         ash_args$df <- nrow(Xsv) - ncol(Xsv)
+        multiplier <- mad(tstats, constant = 1 / qt(3 / 4, df = ash_args$df))
+    } else {
+        multiplier <- mad(tstats)
     }
+    ash_args$sebetahat <- sebetahat * multiplier
 
     ash_out <- do.call(what = ash, args = ash_args)
 
@@ -166,8 +167,13 @@ ash_ruv_mad <- function(Y, X, ctl, ruv_type = c("ruv4", "ruv2"),
     sebetahat_old    <- sqrt(ruvout$sigma2 * ruvout$multiplier)
     ash_args$betahat <- ruvout$betahat
 
-    multiplier <- mad(ruvout$t)
 
+    if (likelihood == "t") {
+        ash_args$df <- nrow(X) - ncol(X) - k
+        multiplier <- mad(ruvout$t, constant = 1 / qt(3 / 4, df = ash_args$df))
+    } else {
+        multiplier <- mad(ruvout$t)
+    }
     ash_args$sebetahat <- sebetahat_old * multiplier
 
     ash_out <- do.call(what = ash, args = ash_args)
@@ -237,10 +243,16 @@ vlema <- function(Y, X, cov_of_interest = ncol(X),
 
     told <- eout$t[, cov_of_interest]
 
-    multiplier <- mad(told)
+
+    if (likelihood == "t") {
+        ash_args$df <- nrow(X) - ncol(X)
+        multiplier <- mad(told, constant = 1 / qt(3 / 4, df = ash_args$df))
+    } else {
+        multiplier <- mad(told)
+    }
 
     tstats  <- told / multiplier
-    pvalues <- 2 * pt(-abs(tstats), df = ncol(X))
+    pvalues <- 2 * pt(-abs(tstats), df = nrow(X) - ncol(X))
 
     sebetahat_old <- eout$stdev.unscaled[, cov_of_interest]  * sqrt(eout$s2.post)
 
