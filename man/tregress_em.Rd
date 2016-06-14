@@ -34,11 +34,10 @@ estimate under Gaussian errors.}
 algorithm that is passed to SQUAREM.}
 }
 \description{
-When using a
-\href{https://en.wikipedia.org/wiki/Student%27s_t-distribution#Non-standardized_Student.27s_t-distribution}{non-standard
-t-distribution} for your regression likelihood, there is a simple
-latent variable representation that allows us to develop an EM
-algorithm. This is a very similar procedure to Lange et al (1989).
+When using a non-standard t-distribution for your regression
+likelihood, there is a simple latent variable representation that
+allows us to develop an EM algorithm. This is a very similar
+procedure to Lange et al (1989).
 }
 \author{
 David Gerard

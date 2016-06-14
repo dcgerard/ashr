@@ -413,11 +413,10 @@ pca_naive <- function (Y, r) {
 #' EM algorithm to find regression coefficients using t-likelihood
 #' when variances are known up to scale.
 #'
-#' When using a
-#' \href{https://en.wikipedia.org/wiki/Student%27s_t-distribution#Non-standardized_Student.27s_t-distribution}{non-standard
-#' t-distribution} for your regression likelihood, there is a simple
-#' latent variable representation that allows us to develop an EM
-#' algorithm. This is a very similar procedure to Lange et al (1989).
+#' When using a non-standard t-distribution for your regression
+#' likelihood, there is a simple latent variable representation that
+#' allows us to develop an EM algorithm. This is a very similar
+#' procedure to Lange et al (1989).
 #'
 #'
 #' @param Y A matrix of numerics with one column. The response

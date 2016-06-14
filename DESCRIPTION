@@ -26,6 +26,5 @@ Suggests:
     limma,
     ruv,
     testthat
->>>>>>> upstream/master
 URL: "http://github.com/stephens999/ashr
 RoxygenNote: 5.0.1
