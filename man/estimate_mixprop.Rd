@@ -6,7 +6,7 @@
 \usage{
 estimate_mixprop(betahat, sebetahat, g, prior, optmethod = c("mixEM",
   "mixVBEM", "cxxMixSquarem", "mixIP"), null.comp = 1, df = NULL,
-  control = list())
+  control = list(), errordist = NULL)
 }
 \arguments{
 \item{betahat}{(n vector of observations)}
@@ -33,6 +33,13 @@ betahat/sebetahat, default is NULL(Gaussian)}
 algorithm, default value is set to be control.default=list(K =
 1, method=3, square=TRUE, step.min0=1, step.max0=1, mstep=4,
 kr=1, objfn.inc=1,tol=1.e-07, maxiter=5000, trace=FALSE).}
+
+\item{errordist}{A list of objects of either class \code{normalmix}
+or \code{unimix}. The length of this list must be the length of
+\code{betahat}. \code{errordist[[i]]} is the \eqn{i}th error
+distribution of \code{betahat[i]}. Defaults to \code{NULL}, in
+which case \code{ash.workhorse} will assume either a normal or
+t likelihood, depending on the value for \code{df}.}
 }
 \value{
 A list, including the final loglikelihood, the null loglikelihood, a n by k likelihoodmatrix with (j,k)th element equal to \eqn{f_k(x_j)},and a flag to indicate convergence.

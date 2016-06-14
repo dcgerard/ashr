@@ -155,9 +155,15 @@ ash = function(betahat,sebetahat,mixcompdist = c("uniform","halfuniform","normal
 #'     kr=1, objfn.inc=1,tol=1.e-07, maxiter=5000, trace=FALSE). User
 #'     may supply changes to this list of parameter, say,
 #'     control=list(maxiter=10000,trace=TRUE)
-
+#' @param errordist A list of objects of either class \code{normalmix}
+#'     or \code{unimix}. The length of this list must be the length of
+#'     \code{betahat}. \code{errordist[[i]]} is the \eqn{i}th error
+#'     distribution of \code{betahat[i]}. Defaults to \code{NULL}, in
+#'     which case \code{ash.workhorse} will assume either a normal or
+#'     t likelihood, depending on the value for \code{df}.
 #'
-#' @return ash returns an object of \code{\link[base]{class}} "ash", a list with some or all of the following elements (determined by outputlevel) \cr
+#' @return ash returns an object of \code{\link[base]{class}} "ash", a list
+#' with some or all of the following elements (determined by outputlevel) \cr
 #' \item{fitted.g}{fitted mixture, either a normalmix or unimix}
 #' \item{loglik}{log P(D|mle(pi))}
 #' \item{logLR}{log[P(D|mle(pi))/P(D|beta==0)]}
@@ -183,7 +189,6 @@ ash = function(betahat,sebetahat,mixcompdist = c("uniform","halfuniform","normal
 #'     after getting the ash object return by \code{ash()}
 #' @seealso \code{\link{ashm}} for Multi-model Adaptive Shrinkage
 #'     function
-
 #'
 #' @export
 #' @examples
@@ -213,224 +218,283 @@ ash = function(betahat,sebetahat,mixcompdist = c("uniform","halfuniform","normal
 #' sebetahat = abs(rnorm(200,0,1))
 #' betahat = rnorm(200,beta,sebetahat)
 #' true_g = normalmix(c(0.5,0.5),c(0,0),c(0,1)) # define true g
-#' ## Passing this g into ash causes it to i) take the sd and the means
-#' ## for each component from this g, and ii) initialize pi to the value
-#' ## from this g.
+#' ## Passing this g into ash causes it to
+#' ## i) take the sd and the means for each component from this g, and
+#' ## ii) initialize pi to the value from this g.
 #' beta.ash = ash(betahat, sebetahat,g=true_g,fixg=TRUE)
-ash.workhorse = function(betahat,sebetahat,
-                         method = c("fdr","shrink"),
-                         mixcompdist = c("uniform","halfuniform","normal","+uniform","-uniform"),
-                         optmethod = c("mixIP","cxxMixSquarem","mixEM","mixVBEM"),
-                         df=NULL,randomstart=FALSE,
-                         nullweight=10,nonzeromode=FALSE,
+ash.workhorse = function(betahat, sebetahat = NULL,
+                         method = c("fdr", "shrink"),
+                         mixcompdist = c("uniform", "halfuniform", "normal", "+uniform", "-uniform"),
+                         optmethod = c("mixIP", "cxxMixSquarem", "mixEM", "mixVBEM"),
+                         df = NULL, randomstart = FALSE,
+                         nullweight = 10, nonzeromode = FALSE,
                          pointmass = NULL,
-                         prior=c("nullbiased","uniform","unit"),
-                         mixsd=NULL, gridmult=sqrt(2),
-                         outputlevel=2,
-                         g=NULL,
-                         fixg=FALSE,
-                         cxx=NULL,
-                         VB=NULL,
-                         model=c("EE","ET"),
-                         control=list()
-){
+                         prior = c("nullbiased", "uniform", "unit"),
+                         mixsd = NULL, gridmult = sqrt(2),
+                         outputlevel = 2, g = NULL, fixg = FALSE,
+                         cxx = NULL, VB = NULL, model = c("EE", "ET"),
+                         control = list(),
+                         errordist = NULL){
 
-  ##1.Handling Input Parameters
-
-  method      = match.arg(method)
-  mixcompdist = match.arg(mixcompdist)
-  optmethod   = match.arg(optmethod)
-  model       = match.arg(model)
-
-  # Capture all arguments into a list
-  oldargs = mget(names(formals()), sys.frame(sys.nframe()))
-  newargs = process_args(oldargs)
-
-  # Assign each argument in returned list to a variable used by the code next
-  for (i in 1:length(newargs)) assign(names(newargs)[i], newargs[[i]])
-
-  ##2. Generating mixture distribution
-
-  if(fixg & missing(g)){stop("if fixg=TRUE then you must specify g!")}
-
-  if(!is.null(g)){
-    k=ncomp(g)
-    null.comp=1 #null.comp not actually used unless randomstart true
-    prior = setprior(prior,k,nullweight,null.comp)
-    if(randomstart){pi = initpi(k,n,null.comp,randomstart)
-                    g$pi=pi} #if g specified, only initialize pi if randomstart is TRUE
-  } else {
-    if(is.null(mixsd)){
-      if(nonzeromode){
-        mixsd = autoselect.mixsd(betahat[completeobs]-mean(betahat[completeobs]),sebetahat[completeobs],gridmult)
-        if(pointmass){ mixsd = c(0,mixsd) }
-        nonzeromode.fit=nonzeromodeEM(betahat[completeobs], sebetahat[completeobs], mixsd=mixsd, mixcompdist=mixcompdist,df=df,control= controlinput)
-        betahat[completeobs]= betahat[completeobs] - nonzeromode.fit$nonzeromode
-      }
-      else if(nonzeromode & !is.null(df)){
-        # stop("Error: Nonzero mean only implemented for df=NULL")
-      }
-      mixsd = autoselect.mixsd(betahat[completeobs],sebetahat[completeobs],gridmult)
-    }
-    if(pointmass){
-      mixsd = c(0,mixsd)
+    if (is.null(sebetahat) & is.null(errordist)) {
+        stop("Error: either sebetahat or errordist needs to be specified")
+    } else if (is.null(sebetahat)) {
+        sebetahat <- rep(NA, length = length(betahat))
     }
 
 
-    null.comp = which.min(mixsd) #which component is the "null"
 
-    k = length(mixsd)
-    prior = setprior(prior,k,nullweight,null.comp)
-    pi = initpi(k,n,null.comp,randomstart)
-
-
-    if(!is.element(mixcompdist,c("normal","uniform","halfuniform","+uniform","-uniform"))) stop("Error: invalid type of mixcompdist")
-    if(mixcompdist=="normal") g=normalmix(pi,rep(0,k),mixsd)
-    if(mixcompdist=="uniform") g=unimix(pi,-mixsd,mixsd)
-    if(mixcompdist=="+uniform") g = unimix(pi,rep(0,k),mixsd)
-    if(mixcompdist=="-uniform") g = unimix(pi,-mixsd,rep(0,k))
-    if(mixcompdist=="halfuniform"){
-      if(min(mixsd)>0){ #simply reflect the components
-        g = unimix(c(pi,pi)/2,c(-mixsd,rep(0,k)),c(rep(0,k),mixsd))
-        prior = rep(prior, 2)
-        pi = rep(pi, 2)
-      } else { #define two sets of components, but don't duplicate null component
-        null.comp=which.min(mixsd)
-        g = unimix(c(pi,pi[-null.comp])/2,c(-mixsd,rep(0,k-1)),c(rep(0,k),mixsd[-null.comp]))
-        prior = c(prior,prior[-null.comp])
-        pi = c(pi,pi[-null.comp])
-      }
+    assertthat::are_equal(length(betahat), length(sebetahat))
+    assertthat::assert_that(is.null(errordist) | is.list(errordist))
+    if (!is.null(errordist)) {
+        assertthat::are_equal(length(betahat), length(errordist))
+        class_vec <- sapply(errordist, class)
+        assertthat::assert_that(all(class_vec == "normalmix" | class_vec == "unimix"))
     }
-  }
 
-  #check that all prior are >=1 (as otherwise have problems with infinite penalty)
-  if(!all(prior>=1) & optmethod != "mixVBEM"){
-    stop("Error: prior must all be >=1 (unless using optmethod mixVBEM)")}
+    ## 1.Handling Input Parameters
 
-  ##3. Fitting the mixture
-  if(!fixg){
-    pi.fit=estimate_mixprop(betahat[completeobs],sebetahat[completeobs],g,prior,null.comp=null.comp,
-               optmethod=optmethod,df=df,control=controlinput)
-  } else {
-    pi.fit = list(g=g)
-  }
+    method      <- match.arg(method)
+    mixcompdist <- match.arg(mixcompdist)
+    optmethod   <- match.arg(optmethod)
+    model       <- match.arg(model)
 
-  ##4. Computing the posterior
+    ## Capture all arguments into a list
+    oldargs <- mget(names(formals()), sys.frame(sys.nframe()))
+    newargs <- process_args(oldargs)
 
-  n = length(betahat)
+    ## Assign each argument in returned list to a variable used by the code next
+    for (i in 1:length(newargs)) assign(names(newargs)[i], newargs[[i]])
 
-  if (outputlevel > 0) {
-    PosteriorMean = rep(0,length = n)
-    PosteriorSD = rep(0,length = n)
-    PosteriorMean[completeobs] = postmean(pi.fit$g,betahat[completeobs],sebetahat[completeobs],df)
-    PosteriorSD[completeobs] = postsd(pi.fit$g,betahat[completeobs],sebetahat[completeobs],df)
-    #FOR MISSING OBSERVATIONS, USE THE PRIOR INSTEAD OF THE POSTERIOR
-    PosteriorMean[!completeobs] = calc_mixmean(pi.fit$g)
-    PosteriorSD[!completeobs] = calc_mixsd(pi.fit$g)
-  }
-  if (outputlevel > 1) {
-    ZeroProb = rep(0,length = n)
-    NegativeProb = rep(0,length = n)
-    ZeroProb[completeobs] = colSums(comppostprob(pi.fit$g,betahat[completeobs],sebetahat[completeobs],df)[comp_sd(pi.fit$g) ==
-                                                                                                            0,,drop = FALSE])
-    NegativeProb[completeobs] = cdf_post(pi.fit$g, 0, betahat[completeobs],sebetahat[completeobs],df) - ZeroProb[completeobs]
-    #FOR MISSING OBSERVATIONS, USE THE PRIOR INSTEAD OF THE POSTERIOR
-    ZeroProb[!completeobs] = sum(mixprop(pi.fit$g)[comp_sd(pi.fit$g) == 0])
-    NegativeProb[!completeobs] = mixcdf(pi.fit$g,0)
-    lfsr = compute_lfsr(NegativeProb,ZeroProb)
-    PositiveProb = 1 - NegativeProb - ZeroProb
-    PositiveProb = ifelse(PositiveProb<0,0,PositiveProb) #deal with numerical issues that lead to numbers <0
-    lfdr = ZeroProb
-    qvalue = qval.from.lfdr(lfdr)
-    svalue = qval.from.lfdr(lfsr)
-  }
+    ## 2. Generating mixture distribution
 
-  if(outputlevel>3){ #compute the flash output
-    kk = ncomp(pi.fit$g)
-    comp_postprob = matrix(0,nrow = kk, ncol = n)
-    comp_postmean = matrix(0,nrow = kk, ncol = n)
-    comp_postmean2 =  matrix(0,nrow = kk, ncol = n)
+    if (fixg & missing(g)) {stop("if fixg = TRUE then you must specify g!")}
 
-    comp_postprob[,completeobs] = comppostprob(pi.fit$g,betahat[completeobs],sebetahat[completeobs],df)
-    comp_postmean[,completeobs] = comp_postmean(pi.fit$g,betahat[completeobs],sebetahat[completeobs],df)
-    comp_postmean2[,completeobs] = comp_postmean2(pi.fit$g,betahat[completeobs],sebetahat[completeobs],df)
+    if (!is.null(g)) {
+        k <- ncomp(g)
+        null.comp <- 1 #null.comp not actually used unless randomstart true
+        prior = setprior(prior, k, nullweight, null.comp)
+        if(randomstart) {pi = initpi(k, n, null.comp, randomstart)
+            g$pi = pi} #if g specified, only initialize pi if randomstart is TRUE
+    } else {
+        if (is.null(mixsd)) {
+            if (nonzeromode) {
+                mixsd = autoselect.mixsd(betahat[completeobs] - mean(betahat[completeobs]),
+                                         sebetahat[completeobs],
+                                         gridmult)
+                if(pointmass){ mixsd = c(0,mixsd) }
+                nonzeromode.fit = nonzeromodeEM(betahat[completeobs],
+                                                sebetahat[completeobs],
+                                                mixsd=mixsd,
+                                                mixcompdist=mixcompdist,
+                                                df=df,
+                                                control= controlinput)
+                betahat[completeobs]= betahat[completeobs] - nonzeromode.fit$nonzeromode
+            }
+            else if(nonzeromode & !is.null(df)){
+                ## stop("Error: Nonzero mean only implemented for df=NULL")
+            }
+            mixsd = autoselect.mixsd(betahat[completeobs],sebetahat[completeobs],gridmult)
+        }
+        if(pointmass){
+            mixsd = c(0,mixsd)
+        }
 
-    #FOR MISSING OBSERVATIONS, USE THE PRIOR INSTEAD OF THE POSTERIOR
-    comp_postprob[,!completeobs] = mixprop(pi.fit$g)
-    comp_postmean[,!completeobs] = comp_mean(pi.fit$g)
-    comp_postmean2[,!completeobs] = comp_mean2(pi.fit$g)
 
-    flash.data = list(comp_postprob = comp_postprob,comp_postmean = comp_postmean,comp_postmean2 = comp_postmean2)
-  }
-  if(nonzeromode){
-    #Adding back the nonzero mean
-    betahat[completeobs]= betahat[completeobs]+nonzeromode.fit$nonzeromode
-    if(mixcompdist=="normal"){
-      pi.fit$g$mean = rep(nonzeromode.fit$nonzeromode,length(pi.fit$g$pi))
+        null.comp = which.min(mixsd) #which component is the "null"
+
+        k = length(mixsd)
+        prior = setprior(prior,k,nullweight,null.comp)
+        pi = initpi(k,n,null.comp,randomstart)
+
+
+        if(!is.element(mixcompdist, c("normal","uniform","halfuniform","+uniform","-uniform"))) stop("Error: invalid type of mixcompdist")
+        if(mixcompdist=="normal") g=normalmix(pi,rep(0,k),mixsd)
+        if(mixcompdist=="uniform") g=unimix(pi,-mixsd,mixsd)
+        if(mixcompdist=="+uniform") g = unimix(pi,rep(0,k),mixsd)
+        if(mixcompdist=="-uniform") g = unimix(pi,-mixsd,rep(0,k))
+        if(mixcompdist=="halfuniform"){
+            if(min(mixsd)>0){ #simply reflect the components
+                g = unimix(c(pi,pi)/2,c(-mixsd,rep(0,k)),c(rep(0,k),mixsd))
+                prior = rep(prior, 2)
+                pi = rep(pi, 2)
+            } else { #define two sets of components, but don't duplicate null component
+                null.comp=which.min(mixsd)
+                g = unimix(c(pi, pi[-null.comp]) / 2,
+                           c(-mixsd, rep(0, k - 1)),
+                           c(rep(0, k), mixsd[ - null.comp]))
+                prior = c(prior,prior[-null.comp])
+                pi = c(pi,pi[-null.comp])
+            }
+        }
     }
-    else if(mixcompdist=="uniform"|mixcompdist=="halfuniform"){
-      pi.fit$g$a = pi.fit$g$a + nonzeromode.fit$nonzeromode
-      pi.fit$g$b = pi.fit$g$b + nonzeromode.fit$nonzeromode
+
+    ## check that all prior are >=1 (as otherwise have problems with infinite penalty)
+    if(!all(prior>=1) & optmethod != "mixVBEM"){
+        stop("Error: prior must all be >= 1 (unless using optmethod mixVBEM)")}
+
+    ## 3. Fitting the mixture
+    if(!fixg){
+        pi.fit = estimate_mixprop(betahat[completeobs],
+                                  sebetahat[completeobs], g, prior,
+                                  null.comp = null.comp,
+                                  optmethod = optmethod, df = df,
+                                  control = controlinput,
+                                  errordist = errordist)
+    } else {
+        pi.fit = list(g = g)
     }
-    if(outputlevel>0){PosteriorMean = PosteriorMean + nonzeromode.fit$nonzeromode}
-  }
 
-  if(model=="ET"){
-    betahat=betahat*sebetahat.orig
-    sebetahat = sebetahat.orig
-    if(outputlevel>0){
-      PosteriorMean = PosteriorMean * sebetahat
-      PosteriorSD= PosteriorSD * sebetahat
+    ##4. Computing the posterior
+
+    n = length(betahat)
+
+    if (outputlevel > 0) {
+        PosteriorMean = rep(0,length = n)
+        PosteriorSD = rep(0,length = n)
+        PosteriorMean[completeobs] = postmean(pi.fit$g,
+                                              betahat[completeobs],
+                                              sebetahat[completeobs],
+                                              df)
+        PosteriorSD[completeobs] = postsd(pi.fit$g,
+                                          betahat[completeobs],
+                                          sebetahat[completeobs], df)
+        ##FOR MISSING OBSERVATIONS, USE THE PRIOR INSTEAD OF THE POSTERIOR
+        PosteriorMean[!completeobs] = calc_mixmean(pi.fit$g)
+        PosteriorSD[!completeobs] = calc_mixsd(pi.fit$g)
     }
-  }
+    if (outputlevel > 1) {
+        ZeroProb = rep(0,length = n)
+        NegativeProb = rep(0,length = n)
+        ZeroProb[completeobs] = colSums(comppostprob(pi.fit$g,
+                                                     betahat[completeobs],
+                                                     sebetahat[completeobs],
+                                                     df)[comp_sd(pi.fit$g) ==
+                                                         0, ,drop = FALSE])
+        NegativeProb[completeobs] = cdf_post(pi.fit$g, 0,
+                                             betahat[completeobs],
+                                             sebetahat[completeobs],
+                                             df) - ZeroProb[completeobs]
+        ##FOR MISSING OBSERVATIONS, USE THE PRIOR INSTEAD OF THE POSTERIOR
+        ZeroProb[!completeobs] = sum(mixprop(pi.fit$g)[comp_sd(pi.fit$g) == 0])
+        NegativeProb[!completeobs] = mixcdf(pi.fit$g,0)
+        lfsr = compute_lfsr(NegativeProb,ZeroProb)
+        PositiveProb = 1 - NegativeProb - ZeroProb
+        PositiveProb = ifelse(PositiveProb<0,0,PositiveProb) #deal with numerical issues that lead to numbers <0
+        lfdr = ZeroProb
+        qvalue = qval.from.lfdr(lfdr)
+        svalue = qval.from.lfdr(lfsr)
+    }
 
-  loglik = calc_loglik(pi.fit$g, betahat[completeobs], sebetahat[completeobs],df, model)
-  logLR = loglik - calc_null_loglik(betahat[completeobs],sebetahat[completeobs],df,model)
-  ##5. Returning the result
+    if(outputlevel>3){ #compute the flash output
+        kk = ncomp(pi.fit$g)
+        comp_postprob = matrix(0,nrow = kk, ncol = n)
+        comp_postmean = matrix(0,nrow = kk, ncol = n)
+        comp_postmean2 =  matrix(0,nrow = kk, ncol = n)
 
-  result = list(fitted.g=pi.fit$g,call=match.call())
-  if (outputlevel>0) {result=c(result,list(PosteriorMean = PosteriorMean,PosteriorSD = PosteriorSD,loglik = loglik, logLR=logLR))}
-  if (outputlevel>1) {result=c(result,list(PositiveProb = PositiveProb, NegativeProb = NegativeProb,
-                ZeroProb = ZeroProb,lfsr = lfsr,lfdr = lfdr, qvalue = qvalue, svalue=svalue,
-                 excludeindex = excludeindex,model = model, optmethod =optmethod))}
-  if (outputlevel > 1.5){result = c(result,list(data= list(betahat = betahat, sebetahat = sebetahat,df=df)))}
-  if (outputlevel >2) {result=c(result,list(fit=pi.fit))}
-  if (outputlevel >3) {result = c(result, flash.data=list(flash.data))}
-  class(result) = "ash"
-  return(result)
+        comp_postprob[,completeobs] = comppostprob(pi.fit$g,
+                                                   betahat[completeobs],
+                                                   sebetahat[completeobs],
+                                                   df)
+        comp_postmean[,completeobs] = comp_postmean(pi.fit$g,
+                                                    betahat[completeobs],
+                                                    sebetahat[completeobs],
+                                                    df)
+        comp_postmean2[,completeobs] = comp_postmean2(pi.fit$g,
+                                                      betahat[completeobs],
+                                                      sebetahat[completeobs],
+                                                      df)
+
+        ##FOR MISSING OBSERVATIONS, USE THE PRIOR INSTEAD OF THE POSTERIOR
+        comp_postprob[,!completeobs] = mixprop(pi.fit$g)
+        comp_postmean[,!completeobs] = comp_mean(pi.fit$g)
+        comp_postmean2[,!completeobs] = comp_mean2(pi.fit$g)
+
+        flash.data = list(comp_postprob = comp_postprob,
+                          comp_postmean = comp_postmean,
+                          comp_postmean2 = comp_postmean2)
+    }
+    if(nonzeromode){
+        ##Adding back the nonzero mean
+        betahat[completeobs]= betahat[completeobs]+nonzeromode.fit$nonzeromode
+        if(mixcompdist=="normal"){
+            pi.fit$g$mean = rep(nonzeromode.fit$nonzeromode,length(pi.fit$g$pi))
+        }
+        else if(mixcompdist=="uniform"|mixcompdist=="halfuniform"){
+            pi.fit$g$a = pi.fit$g$a + nonzeromode.fit$nonzeromode
+            pi.fit$g$b = pi.fit$g$b + nonzeromode.fit$nonzeromode
+        }
+        if(outputlevel>0){PosteriorMean = PosteriorMean + nonzeromode.fit$nonzeromode}
+    }
+
+    if(model=="ET"){
+        betahat=betahat*sebetahat.orig
+        sebetahat = sebetahat.orig
+        if(outputlevel>0){
+            PosteriorMean = PosteriorMean * sebetahat
+            PosteriorSD= PosteriorSD * sebetahat
+        }
+    }
+
+    loglik = calc_loglik(pi.fit$g, betahat[completeobs], sebetahat[completeobs],df, model)
+    logLR = loglik - calc_null_loglik(betahat[completeobs],sebetahat[completeobs],df,model)
+
+    ## 5. Returning the result
+
+    result = list(fitted.g=pi.fit$g,call=match.call())
+    if (outputlevel>0) {result=c(result,list(PosteriorMean = PosteriorMean,
+                                             PosteriorSD = PosteriorSD,
+                                             loglik = loglik,
+                                             logLR=logLR))}
+    if (outputlevel>1) {result=c(result,list(PositiveProb = PositiveProb,
+                                             NegativeProb = NegativeProb,
+                                             ZeroProb = ZeroProb,
+                                             lfsr = lfsr,lfdr = lfdr,
+                                             qvalue = qvalue,
+                                             svalue=svalue,
+                                             excludeindex = excludeindex,
+                                             model = model,
+                                             optmethod =optmethod))}
+    if (outputlevel > 1.5){result = c(result,list(data= list(betahat = betahat,
+                                                             sebetahat = sebetahat,
+                                                             df=df)))}
+    if (outputlevel >2) {result=c(result,list(fit=pi.fit))}
+    if (outputlevel >3) {result = c(result, flash.data=list(flash.data))}
+    class(result) = "ash"
+    return(result)
 
 }
 
 initpi = function(k,n,null.comp,randomstart){
-  if(randomstart){
-    pi = stats::rgamma(k,1,1)
-  } else {
-    if(k<n){
-      pi=rep(1,k)/n #default initialization strongly favours null; puts weight 1/n on everything except null
-      pi[null.comp] = (n-k+1)/n #the motivation is data can quickly drive away from null, but tend to drive only slowly toward null.
+    if(randomstart){
+        pi = stats::rgamma(k,1,1)
     } else {
-      pi=rep(1,k)/k
+        if(k<n){
+            pi = rep(1, k) / n #default initialization strongly favours null; puts weight 1/n on everything except null
+            pi[null.comp] = (n - k + 1) / n #the motivation is data can quickly drive away from null, but tend to drive only slowly toward null.
+        } else {
+            pi = rep(1, k) / k
+        }
     }
-  }
-  pi=normalize(pi)
-  return(pi)
+    pi=normalize(pi)
+    return(pi)
 }
 
 setprior=function(prior,k,nullweight,null.comp){
-  if(!is.numeric(prior)){
-    if(prior=="nullbiased"){ # set up prior to favour "null"
-      prior = rep(1,k)
-      prior[null.comp] = nullweight #prior 10-1 in favour of null by default
-    }else if(prior=="uniform"){
-      prior = rep(1,k)
-    } else if(prior=="unit"){
-      prior = rep(1/k,k)
+    if(!is.numeric(prior)){
+        if(prior == "nullbiased"){ # set up prior to favour "null"
+            prior = rep(1,k)
+            prior[null.comp] = nullweight #prior 10-1 in favour of null by default
+        }else if(prior == "uniform"){
+            prior = rep(1, k)
+        } else if(prior == "unit"){
+            prior = rep(1/k,k)
+        }
     }
-  }
-  if(length(prior)!=k | !is.numeric(prior)){
-    stop("invalid prior specification")
-  }
-  return(prior)
+    if(length(prior) != k | !is.numeric(prior)){
+        stop("invalid prior specification")
+    }
+    return(prior)
 }
 
 
@@ -478,6 +542,7 @@ gradient = function(matrix_lik){
 #'     algorithm, default value is set to be control.default=list(K =
 #'     1, method=3, square=TRUE, step.min0=1, step.max0=1, mstep=4,
 #'     kr=1, objfn.inc=1,tol=1.e-07, maxiter=5000, trace=FALSE).
+#' @inheritParams ash.workhorse
 #' @return A list, including the final loglikelihood, the null loglikelihood, a n by k likelihoodmatrix with (j,k)th element equal to \eqn{f_k(x_j)},and a flag to indicate convergence.
 #
 #prior gives the parameter of a Dirichlet prior on pi
@@ -487,59 +552,72 @@ gradient = function(matrix_lik){
 #of mixture proportions of sigmaa by variational Bayes method
 #(use Dirichlet prior and approximate Dirichlet posterior)
 #if cxx TRUE use cpp version of R function mixEM
-estimate_mixprop = function(betahat,sebetahat,g,prior,optmethod=c("mixEM","mixVBEM","cxxMixSquarem","mixIP"),null.comp=1,df=NULL,control=list()){
-  control.default=list(K = 1, method=3, square=TRUE, step.min0=1, step.max0=1, mstep=4, kr=1, objfn.inc=1,tol=1.e-07, maxiter=5000, trace=FALSE)
-  optmethod=match.arg(optmethod)
-  namc=names(control)
-  if (!all(namc %in% names(control.default)))
-    stop("unknown names in control: ", namc[!(namc %in% names(control.default))])
-  controlinput=modifyList(control.default, control)
+estimate_mixprop = function(betahat, sebetahat, g, prior,
+                            optmethod = c("mixEM", "mixVBEM", "cxxMixSquarem", "mixIP"),
+                            null.comp = 1, df = NULL,
+                            control = list(), errordist = NULL){
+    control.default = list(K = 1, method=3, square=TRUE, step.min0=1,
+                           step.max0=1, mstep=4, kr=1, objfn.inc=1,
+                           tol=1.e-07, maxiter=5000, trace=FALSE)
+    optmethod = match.arg(optmethod)
+    namc = names(control)
+    if (!all(namc %in% names(control.default)))
+        stop("unknown names in control: ", namc[!(namc %in% names(control.default))])
+    controlinput = modifyList(control.default, control)
 
-  pi_init = g$pi
-  if(optmethod=="mixVBEM"){pi_init=NULL}  #for some reason pi_init doesn't work with mixVBEM
+    pi_init = g$pi
+    if (optmethod == "mixVBEM") {pi_init = NULL}  #for some reason pi_init doesn't work with mixVBEM
 
-  k=ncomp(g)
-  n = length(betahat)
-  controlinput$tol = min(0.1/n,1.e-7) # set convergence criteria to be more stringent for larger samples
+    k = ncomp(g)
+    n = length(betahat)
+    controlinput$tol = min(0.1 / n, 1.e-7) # set convergence criteria to be more stringent for larger samples
 
-  if(controlinput$trace==TRUE){tic()}
+    if (controlinput$trace == TRUE) {tic()}
 
-  matrix_llik = t(log_compdens_conv(g,betahat,sebetahat,df)) #an n by k matrix
-  matrix_llik = matrix_llik - apply(matrix_llik,1, max) #avoid numerical issues by subtracting max of each row
-  matrix_lik = exp(matrix_llik)
+    if (is.null(errordist)) {
+        matrix_llik = t(log_compdens_conv(g, betahat, sebetahat, df)) #an n by k matrix
+    } else {
+        ## insert mixture of normal likelihood here
+        matrix_llik <- t(log_compdens_conv_mix(g, betahat, errordist))
+    }
+    assertthat::are_equal(nrow(matrix_llik), n)
+    assertthat::are_equal(ncol(matrix_llik), k)
+    matrix_llik = matrix_llik - apply(matrix_llik, 1, max) #avoid numerical issues by subtracting max of each row
+    matrix_lik = exp(matrix_llik)
 
-  # the last of these conditions checks whether the gradient at the null is negative wrt pi0
-  # to avoid running the optimization when the global null (pi0=1) is the optimal.
-  if(optmethod=="mixVBEM" || max(prior[-1])>1 || min(gradient(matrix_lik)+prior[1]-1,na.rm=TRUE)<0){
-    fit=do.call(optmethod,args = list(matrix_lik= matrix_lik, prior=prior, pi_init=pi_init, control=controlinput))
-  } else {
-    fit = list(converged=TRUE,pihat=c(1,rep(0,k-1)))
-  }
+    ## the last of these conditions checks whether the gradient at the null is negative wrt pi0
+    ## to avoid running the optimization when the global null (pi0=1) is the optimal.
+    if (optmethod == "mixVBEM" || max(prior[-1]) > 1 || min(gradient(matrix_lik) + prior[1] - 1,na.rm = TRUE)<0) {
+        fit = do.call(optmethod, args = list(matrix_lik = matrix_lik, prior = prior, pi_init = pi_init, control = controlinput))
+    } else {
+        fit = list(converged=TRUE, pihat=c(1, rep(0, k - 1)))
+    }
 
-  ## check if IP method returns negative mixing proportions. If so, run EM.
-  if (optmethod == "mixIP" & (min(fit$pihat) < -10 ^ -12)) {
-      message("Interior point method returned negative mixing proportions.\n Switching to EM optimization.")
-      optmethod <- "mixEM"
-      fit = do.call(optmethod, args = list(matrix_lik = matrix_lik,
-                                           prior = prior, pi_init = pi_init,
-                                           control = controlinput))
-  }
+    ## check if IP method returns negative mixing proportions. If so, run EM.
+    if (optmethod == "mixIP" & (min(fit$pihat) < -10 ^ -12)) {
+        message("Interior point method returned negative mixing proportions.\n Switching to EM optimization.")
+        optmethod <- "mixEM"
+        fit = do.call(optmethod, args = list(matrix_lik = matrix_lik,
+                                             prior = prior, pi_init = pi_init,
+                                             control = controlinput))
+    }
 
-  if(!fit$converged){
-      warning("Optimization failed to converge. Results may be unreliable. Try increasing maxiter and rerunning.")
-  }
+    if (!fit$converged) {
+        warning("Optimization failed to converge. Results may be unreliable. Try increasing maxiter and rerunning.")
+    }
 
-  pi = fit$pihat
-  converged = fit$converged
-  niter = fit$niter
+    pi = fit$pihat
+    converged = fit$converged
+    niter = fit$niter
 
-  loglik.final =  penloglik(pi,matrix_lik,1) #compute penloglik without penalty
-  null.loglik = sum(log(matrix_lik[,null.comp]))
-  g$pi=pi
-  if(controlinput$trace==TRUE){toc()}
+    loglik.final =  penloglik(pi, matrix_lik, 1) #compute penloglik without penalty
+    null.loglik = sum(log(matrix_lik[, null.comp]))
+    g$pi = pi
+    if (controlinput$trace == TRUE) {toc()}
 
-  return(list(loglik=loglik.final,null.loglik=null.loglik,
-              matrix_lik=matrix_lik,converged=converged,g=g,niter=niter))
+    return(list(loglik = loglik.final, null.loglik = null.loglik,
+                matrix_lik = matrix_lik, converged = converged, g = g,
+                niter = niter))
 }
 
 

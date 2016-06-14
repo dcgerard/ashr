@@ -4,14 +4,14 @@
 \alias{ash.workhorse}
 \title{Detailed Adaptive Shrinkage function}
 \usage{
-ash.workhorse(betahat, sebetahat, method = c("fdr", "shrink"),
+ash.workhorse(betahat, sebetahat = NULL, method = c("fdr", "shrink"),
   mixcompdist = c("uniform", "halfuniform", "normal", "+uniform", "-uniform"),
   optmethod = c("mixIP", "cxxMixSquarem", "mixEM", "mixVBEM"), df = NULL,
   randomstart = FALSE, nullweight = 10, nonzeromode = FALSE,
   pointmass = NULL, prior = c("nullbiased", "uniform", "unit"),
   mixsd = NULL, gridmult = sqrt(2), outputlevel = 2, g = NULL,
   fixg = FALSE, cxx = NULL, VB = NULL, model = c("EE", "ET"),
-  control = list())
+  control = list(), errordist = NULL)
 }
 \arguments{
 \item{betahat}{a p vector of estimates}
@@ -98,9 +98,17 @@ algorithm. Default value is set to be control.default=list(K =
 kr=1, objfn.inc=1,tol=1.e-07, maxiter=5000, trace=FALSE). User
 may supply changes to this list of parameter, say,
 control=list(maxiter=10000,trace=TRUE)}
+
+\item{errordist}{A list of objects of either class \code{normalmix}
+or \code{unimix}. The length of this list must be the length of
+\code{betahat}. \code{errordist[[i]]} is the \eqn{i}th error
+distribution of \code{betahat[i]}. Defaults to \code{NULL}, in
+which case \code{ash.workhorse} will assume either a normal or
+t likelihood, depending on the value for \code{df}.}
 }
 \value{
-ash returns an object of \code{\link[base]{class}} "ash", a list with some or all of the following elements (determined by outputlevel) \cr
+ash returns an object of \code{\link[base]{class}} "ash", a list
+with some or all of the following elements (determined by outputlevel) \cr
 \item{fitted.g}{fitted mixture, either a normalmix or unimix}
 \item{loglik}{log P(D|mle(pi))}
 \item{logLR}{log[P(D|mle(pi))/P(D|beta==0)]}
@@ -159,9 +167,9 @@ beta = c(rep(0,100),rnorm(100))
 sebetahat = abs(rnorm(200,0,1))
 betahat = rnorm(200,beta,sebetahat)
 true_g = normalmix(c(0.5,0.5),c(0,0),c(0,1)) # define true g
-## Passing this g into ash causes it to i) take the sd and the means
-## for each component from this g, and ii) initialize pi to the value
-## from this g.
+## Passing this g into ash causes it to
+## i) take the sd and the means for each component from this g, and
+## ii) initialize pi to the value from this g.
 beta.ash = ash(betahat, sebetahat,g=true_g,fixg=TRUE)
 }
 \seealso{
