@@ -25,7 +25,7 @@
 #'  
 #' @export
 mixIP = function(matrix_lik, prior, pi_init = NULL, control = list()){
-  if(!require("REBayes",quietly=TRUE)){stop("mixIP requires installation of package REBayes")}
+  if(!requireNamespace("REBayes",quietly=TRUE)){stop("mixIP requires installation of package REBayes")}
   n = nrow(matrix_lik)
   k = ncol(matrix_lik)
   #A = matrix_lik
@@ -34,7 +34,7 @@ mixIP = function(matrix_lik, prior, pi_init = NULL, control = list()){
   A = A[w!=0,]    #remove zero weight entries, as these otherwise cause errors
   w = w[w!=0]
   #w = rep(1,n+k)
-  res = REBayes::KWDual(A, rep(1,k), ashr:::normalize(w), control=control)
+  res = REBayes::KWDual(A, rep(1,k), normalize(w), control=control)
   return(list(pihat = normalize(res$f), niter = NULL, converged=(res$status=="OPTIMAL")))
 }
 
