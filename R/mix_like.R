@@ -1,4 +1,5 @@
-#' Find log-component density convolution when error distribution is a mixture.
+#' Find log-component density convolution when error distribution is a
+#' mixture.
 #'
 #' This function will find the log of the coefficients of the prior
 #' mixing proportions in the ASH-likelihood when the model is
@@ -324,4 +325,381 @@ uuconv_dense <- function(g, errordist, x) {
     like_vals[which_zero] <- log(sum(errordist$pi * (x >= errordist$a & x <= errordist$b) /
                                      (errordist$b - errordist$a)))
     return(like_vals)
+}
+
+
+
+
+#' Generate the posterior distribution when the error distribution is
+#' a mixture.
+#'
+#' @param g The prior distribution. Either of class \code{"normalmix"}
+#'     or \code{"unimix"}.
+#' @param betahat The observations, a vector of numerics.
+#' @param errordist A list of mixture distributions.
+#'
+#' @return A list of arrays containing the parameters for the posterior.
+#' The first dimension is the observations, the second is the mixture
+#' components for the prior, and the third is the mixture components of
+#' the error.
+#' \item{weights}{The mixing proportions}
+#' \item{means} The location parameter if the posterior is either a mixture
+#' of normals or truncated normals.
+#' \item{variances} The scale parameter if the posterior is either a mixture
+#' of normals or truncated normals.
+#' \item{lower} The lower bound of support if the posterior is either a mixture
+#' of truncated normals of uniforms.
+#' \item{upper} The upper bound of support if the posterior is either a mixture
+#' of truncated normals of uniforms.
+#'
+#' @author David Gerard
+post_mix_dist <- function(g, betahat, errordist) {
+    class_e <- unique(sapply(errordist, class))
+    class_g <- class(g)
+
+    assertthat::are_equal(length(class_e), 1)
+    assertthat::are_equal(length(class_g), 1)
+    assertthat::assert_that(is.list(errordist))
+    assertthat::are_equal(length(betahat), length(errordist))
+
+    pisum <- sapply(errordist, FUN = function(x) { sum(x$pi) })
+    assertthat::assert_that(all(pisum == 1))
+
+    ## make sure error distribution doesn't have point mass on zero
+    if (class_e == "normalmix") {
+        assertthat::assert_that(!any(sapply(errordist, FUN = function(x) { any(x$sd == 0)})))
+    } else if (class_e == "unimix") {
+        assertthat::assert_that(!any(sapply(errordist, FUN = function(x) { any(x$a == 0 & x$b == 0)})))
+    }
+
+    if (class_g == "normalmix" & class_e == "normalmix") {
+        post_dist <- post_mix_dist.normalnormal(g, betahat, errordist)
+    } else if (class_g == "normalmix" & class_e == "unimix") {
+        post_dist <- post_mix_dist.normaluni(g, betahat, errordist)
+    } else if (class_g == "unimix" & class_e == "normalmix") {
+        post_dist <- post_mix_dist.uninormal(g, betahat, errordist)
+    } else if (class_g == "unimix" & class_e == "unimix") {
+        post_dist <- post_mix_dist.uniuni(g, betahat, errordist)
+    } else {
+        stop("Error: either g or errordist is of an unsupported class.")
+    }
+    return(post_dist)
+}
+
+#' Normal-mixture - normal-mixture posterior calculation.
+#'
+#'
+#' @inheritParams post_mix_dist
+#'
+#' @author David Gerard
+post_mix_dist.normalnormal <- function(g, betahat, errordist) {
+    n  <- length(betahat)
+    K  <- length(g$pi)
+    Lj <- length(errordist[[1]]$pi)
+
+    assertthat::are_equal(n, length(errordist))
+
+    carray   <- array(NA, dim = c(n, K, Lj))
+    weights_array  <- array(NA, dim = c(n, K, Lj))
+    means_array    <- array(NA, dim = c(n, K, Lj))
+    variances_array <- array(NA, dim = c(n, K, Lj))
+
+    ## compute carray
+    for (seindex in 1:n) {
+        cerr  <- errordist[[seindex]]
+        cmean <- outer(g$mean, cerr$mean, FUN = "+")
+        csd   <- sqrt(outer(g$sd ^ 2, cerr$sd ^2, FUN = "+"))
+        carray[seindex, , ] <- dnorm(x = betahat[seindex], mean = cmean, sd = csd)
+    }
+
+
+    which_pointmass <- g$sd == 0
+
+    ## compute weights_array, means_array, and variances_array
+    for (seindex in 1:n) {
+        cerr  <- errordist[[seindex]]
+        uncalibrated_weights_array <- outer(g$pi, cerr$pi, FUN = "*") * carray[seindex, , ]
+        weights_array[seindex, , ] <- uncalibrated_weights_array / sum(uncalibrated_weights_array)
+
+        current_var  <- 1 / outer(1 / g$sd ^ 2, 1 / cerr$sd ^ 2, FUN = "+")
+        current_mean <- outer(g$mean / g$sd ^ 2, (betahat[seindex] - cerr$mean) /
+                                                 cerr$sd ^ 2, FUN = "+") * current_var
+        current_mean[which_pointmass, ] <- g$mean[which_pointmass]
+
+        means_array[seindex, , ]     <- current_mean
+        variances_array[seindex, , ] <- current_var
+    }
+
+    post_list <- list(weights = weights_array,
+                      means = means_array,
+                      variances = variances_array)
+    class(post_list) <- "normalmix_array"
+    return(post_list)
+}
+
+#' Normal-mixture - uniform-mixture posterior calculation.
+#'
+#'
+#' @inheritParams post_mix_dist
+#'
+#' @author David Gerard
+post_mix_dist.normaluni <- function(g, betahat, errordist) {
+    n  <- length(betahat)
+    K  <- length(g$pi)
+    Lj <- length(errordist[[1]]$pi)
+
+    assertthat::are_equal(class(g), "normalmix")
+    assertthat::are_equal(unique(sapply(errordist, class)), "unimix")
+    assertthat::are_equal(n, length(errordist))
+
+    carray          <- array(NA, dim = c(n, K, Lj))
+    weights_array   <- array(NA, dim = c(n, K, Lj))
+    means_array     <- array(NA, dim = c(n, K, Lj))
+    variances_array <- array(NA, dim = c(n, K, Lj))
+    lower_array     <- array(NA, dim = c(n, K, Lj))
+    upper_array     <- array(NA, dim = c(n, K, Lj))
+
+    which_pointmass <- g$sd == 0
+
+    ## compute carray
+    for (seindex in 1:n) {
+        cerr <- errordist[[seindex]]
+        left_vals <- outer(g$mean, cerr$b - betahat[seindex], FUN = "+") / g$sd
+        right_vals <- outer(g$mean, cerr$a - betahat[seindex], FUN = "+") / g$sd
+
+        current_c <- t(t(stats::pnorm(q = left_vals) -
+                         stats::pnorm(q = right_vals)) / (cerr$b - cerr$a))
+
+        current_c[which_pointmass, ] <-
+            (betahat[seindex] >= cerr$a & betahat[seindex] <= cerr$b) / (cerr$b - cerr$a)
+
+        carray[seindex, , ] <- current_c
+    }
+
+    ## means, variances, weights, lower and upper
+    for (seindex in 1:n) {
+        cerr  <- errordist[[seindex]]
+        uncalibrated_weights_array <- outer(g$pi, cerr$pi, FUN = "*") * carray[seindex, , ]
+        weights_array[seindex, , ] <- uncalibrated_weights_array / sum(uncalibrated_weights_array)
+
+        current_mean <- matrix(rep(g$mean, Lj), nrow = K)
+        current_var  <- matrix(rep(g$sd ^ 2, Lj), nrow = K)
+        current_lower <- matrix(rep(betahat[seindex] - cerr$b, K), nrow = K, byrow = TRUE)
+        current_upper <- matrix(rep(betahat[seindex] - cerr$a, K), nrow = K, byrow = TRUE)
+
+        means_array[seindex, , ]     <- current_mean
+        variances_array[seindex, , ] <- current_var
+        lower_array[seindex, , ]     <- current_lower
+        upper_array[seindex, , ]     <- current_upper
+    }
+
+    post_list <- list(weights = weights_array,
+                      means = means_array,
+                      variances = variances_array,
+                      lower = lower_array,
+                      upper = upper_array)
+    class(post_list) <- "truncnormalmix_array"
+    return(post_list)
+}
+
+
+#' Uniform-mixture - normal-mixture posterior calculation.
+#'
+#'
+#' @inheritParams post_mix_dist
+#'
+#' @author David Gerard
+post_mix_dist.uninormal <- function(g, betahat, errordist) {
+    n  <- length(betahat)
+    K  <- length(g$pi)
+    Lj <- length(errordist[[1]]$pi)
+
+    assertthat::are_equal(class(g), "unimix")
+    assertthat::are_equal(unique(sapply(errordist, class)), "normalmix")
+    assertthat::are_equal(n, length(errordist))
+
+    carray          <- array(NA, dim = c(n, K, Lj))
+    weights_array   <- array(NA, dim = c(n, K, Lj))
+    means_array     <- array(NA, dim = c(n, K, Lj))
+    variances_array <- array(NA, dim = c(n, K, Lj))
+    lower_array     <- array(NA, dim = c(n, K, Lj))
+    upper_array     <- array(NA, dim = c(n, K, Lj))
+
+    which_pointmass <- g$a == 0 & g$b == 0
+
+    ## compute carray
+    for (seindex in 1:n) {
+        cerr <- errordist[[seindex]]
+        left_vals <- t(outer(cerr$mean - betahat[seindex], g$b, FUN = "+") / cerr$sd)
+        right_vals <- t(outer(cerr$mean - betahat[seindex], g$a, FUN = "+") / cerr$sd)
+
+        current_c <- (stats::pnorm(left_vals) - stats::pnorm(right_vals)) / (g$b - g$a)
+
+        current_c[which_pointmass, ] <- stats::dnorm(x = betahat[seindex],
+                                                     mean = cerr$mean,
+                                                     sd = cerr$sd)
+        carray[seindex, , ] <- current_c
+    }
+
+    ## means, variances, weights, lower and upper
+    for (seindex in 1:n) {
+        cerr  <- errordist[[seindex]]
+        uncalibrated_weights_array <- outer(g$pi, cerr$pi, FUN = "*") * carray[seindex, , ]
+        weights_array[seindex, , ] <- uncalibrated_weights_array / sum(uncalibrated_weights_array)
+
+        current_mean  <- matrix(rep(betahat[seindex] - cerr$mean, K), nrow = K, byrow = TRUE)
+        current_var   <- matrix(rep(cerr$sd ^ 2, K), nrow = K, byrow = TRUE)
+        current_lower <- matrix(rep(g$a, Lj), nrow = K, byrow = FALSE)
+        current_upper <- matrix(rep(g$b, Lj), nrow = K, byrow = FALSE)
+
+        means_array[seindex, , ]     <- current_mean
+        variances_array[seindex, , ] <- current_var
+        lower_array[seindex, , ]     <- current_lower
+        upper_array[seindex, , ]     <- current_upper
+    }
+
+    post_list <- list(weights = weights_array,
+                      means = means_array,
+                      variances = variances_array,
+                      lower = lower_array,
+                      upper = upper_array)
+    class(post_list) <- "truncnormalmix_array"
+    return(post_list)
+}
+
+
+#' Uniform-mixture - uniform-mixture posterior calculation.
+#'
+#'
+#' @inheritParams post_mix_dist
+#'
+#' @author David Gerard
+post_mix_dist.uniuni <- function(g, betahat, errordist) {
+    n  <- length(betahat)
+    K  <- length(g$pi)
+    Lj <- length(errordist[[1]]$pi)
+
+    assertthat::are_equal(class(g), "unimix")
+    assertthat::are_equal(unique(sapply(errordist, class)), "unimix")
+    assertthat::are_equal(n, length(errordist))
+
+    carray          <- array(NA, dim = c(n, K, Lj))
+    weights_array   <- array(NA, dim = c(n, K, Lj))
+    lower_array     <- array(NA, dim = c(n, K, Lj))
+    upper_array     <- array(NA, dim = c(n, K, Lj))
+
+    which_pointmass <- g$a == 0 & g$b == 0
+
+    ## compute carray
+    for (seindex in 1:n) {
+        cerr <- errordist[[seindex]]
+
+        topleft <- matrix(apply(cbind(c(matrix(rep(cerr$b, K), nrow = K, byrow = TRUE)),
+                               c(matrix(rep(betahat[seindex] - g$a, Lj), nrow = K))),
+                               1, min), nrow = K)
+
+        topright <- matrix(apply(cbind(c(matrix(rep(cerr$a, K), nrow = K, byrow = TRUE)),
+                               c(matrix(rep(betahat[seindex] - g$b, Lj), nrow = K))),
+                               1, max), nrow = K)
+
+        denom <- outer(g$b - g$a, cerr$b - cerr$a, FUN = "*")
+        current_c <- (topleft - topright) / denom
+
+        current_c[which_pointmass, ] <-
+            (betahat[seindex] >= cerr$a & betahat[seindex] <= cerr$b) / (cerr$b - cerr$a)
+
+        current_c[current_c < 0] <- 0
+
+        carray[seindex, , ] <- current_c
+    }
+
+
+    ## weights, lower, and upper
+    for (seindex in 1:n) {
+        cerr  <- errordist[[seindex]]
+        uncalibrated_weights_array <- outer(g$pi, cerr$pi, FUN = "*") * carray[seindex, , ]
+        weights_array[seindex, , ] <- uncalibrated_weights_array / sum(uncalibrated_weights_array)
+
+        lower_current <- matrix(apply(cbind(c(matrix(rep(betahat[seindex] - cerr$b, K),
+                                                     nrow = K, byrow = TRUE)),
+                                            c(matrix(rep(g$a, Lj), nrow = K, byrow = FALSE))),
+                                      1, max), nrow = K)
+
+        upper_current <- matrix(apply(cbind(c(matrix(rep(betahat[seindex] - cerr$a, K),
+                                                     nrow = K, byrow = TRUE)),
+                                            c(matrix(rep(g$b, Lj), nrow = K, byrow = FALSE))),
+                                      1, min), nrow = K)
+
+        lower_array[seindex, , ] <- lower_current
+        upper_array[seindex, , ] <- upper_current
+
+
+        lower_array[seindex, which_pointmass, ] <- 0
+        upper_array[seindex, which_pointmass, ] <- 0
+    }
+    assertthat::assert_that(all(upper_array >= lower_array))
+
+    post_list <- list(weights = weights_array,
+                      lower = lower_array,
+                      upper = upper_array)
+
+    class(post_list) <- "unimix_array"
+    return(post_list)
+}
+
+
+#' Compute mean from a mix_array.
+#'
+#' @param mixdist Of class \code{unimix_array},
+#'     \code{normalmix_array}, or \code{truncnormalmix_array}. These
+#'     are the classes of the output from \code{\link{post_mix_dist}}.
+#'
+#' @author David Gerard
+mix_mean_array <- function(mixdist) {
+      UseMethod("mix_mean_array")
+}
+mix_mean_array.default <- function(mixdist) {
+    stop(paste("Error: Invalid class", class(mixdist), "for argument in", match.call()))
+}
+mix_mean_array.normalmix_array <- function(mixdist) {
+    return(apply(mixdist$means * mixdist$weights, 1, sum))
+}
+mix_mean_array.truncnormalmix_array <- function(mixdist) {
+    which_pointmass <- mixdist$variances == 0 | (mixdist$lower == 0 & mixdist$upper == 0)
+    sdarray <- sqrt(mixdist$variances)
+    alpha <- (mixdist$lower - mixdist$means) / sdarray
+    beta  <- (mixdist$upper - mixdist$means) / sdarray
+    Z <- pnorm(beta) - pnorm(alpha)
+    num <- dnorm(alpha) - dnorm(beta)
+
+    postmeans <- mixdist$mean - num / Z * sdarray
+    postmeans[which_pointmass] <- 0
+    return(apply(postmeans * mixdist$weights, 1, sum))
+}
+mix_mean_array.unimix_array <- function(mixdist) {
+    return(apply((mixdist$upper + mixdist$lower) / 2 * mixdist$weights, 1, sum))
+}
+
+#' Compute the probability of zero.
+#'
+#' @inheritParams mix_mean_array
+#'
+#' @author David Gerard
+mix_probzero_array <- function(mixdist) {
+    UseMethod("mix_mean_array")
+}
+mix_probzero_array.default <- function(mixdist) {
+    stop(paste("Error: Invalid class", class(mixdist), "for argument in", match.call()))
+}
+mix_probzero_array.normalmix_array <- function(mixdist) {
+    which_pointmass <- mixdist$variances == 0
+    return(apply(mixdist$weights * which_pointmass, 1, sum))
+}
+mix_probzero_array.truncnormalmix_array <- function(mixdist) {
+    which_pointmass <- mixdist$variances == 0 | (mixdist$lower == 0 & mixdist$upper == 0)
+    return(apply(mixdist$weights * which_pointmass, 1, sum))
+}
+mix_probzero_array.unimix_array <- function(mixdist) {
+    which_pointmass <- mixdist$lower == 0 & mixdist$upper == 0
+    return(apply(mixdist$weights * which_pointmass, 1, sum))
 }

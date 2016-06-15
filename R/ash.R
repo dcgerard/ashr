@@ -246,13 +246,38 @@ ash.workhorse = function(betahat, sebetahat = NULL,
         sebetahat <- rep(NA, length = length(betahat))
     }
 
-    assertthat::are_equal(length(betahat), length(sebetahat))
     assertthat::assert_that(is.null(errordist) | is.list(errordist))
     if (!is.null(errordist)) {
         assertthat::are_equal(length(betahat), length(errordist))
         class_vec <- sapply(errordist, class)
         assertthat::assert_that(all(class_vec == "normalmix" | class_vec == "unimix"))
+        class_e <- unique(class_vec)
+
+        ## set grid based on variance of errordist
+        if (!is.null(sebetahat)) {
+            message("Overwriting sebetahat because errordist is specified.")
+        }
+
+        sebetahat <- rep(NA, length = length(betahat))
+        if (class_e == "normalmix") {
+            for (seindex in 1:length(sebetahat)) {
+                cdist <- errordist[[seindex]]
+                second_moment <- sum(cdist$pi * (cdist$sd ^ 2 + cdist$mean ^ 2))
+                first_moment2 <- sum(cdist$pi * cdist$mean) ^ 2
+                sebetahat[seindex] <- sqrt(second_moment - first_moment2)
+            }
+        } else if (class_e == "unimix") {
+            for(seindex in 1:length(sebetahat)) {
+                cdist <- errordist[[seindex]]
+                second_moment <- sum(cdist$pi *
+                                     (cdist$a ^ 2 + cdist$a * cdist$b + cdist$b ^ 2)) / 3
+                first_moment2 <- (sum(cdist$pi * (cdist$a + cdist$b)) / 2) ^ 2
+                sebetahat[seindex] <- sqrt(second_moment - first_moment2)
+            }
+        }
     }
+    assertthat::are_equal(length(betahat), length(sebetahat))
+
 
     ## 1.Handling Input Parameters
 
@@ -296,7 +321,7 @@ ash.workhorse = function(betahat, sebetahat = NULL,
             else if(nonzeromode & !is.null(df)){
                 ## stop("Error: Nonzero mean only implemented for df=NULL")
             }
-            mixsd = autoselect.mixsd(betahat[completeobs],sebetahat[completeobs],gridmult)
+            mixsd = autoselect.mixsd(betahat[completeobs], sebetahat[completeobs], gridmult)
         }
         if(pointmass){
             mixsd = c(0,mixsd)
@@ -306,15 +331,15 @@ ash.workhorse = function(betahat, sebetahat = NULL,
         null.comp = which.min(mixsd) #which component is the "null"
 
         k = length(mixsd)
-        prior = setprior(prior,k,nullweight,null.comp)
-        pi = initpi(k,n,null.comp,randomstart)
+        prior = setprior(prior, k, nullweight, null.comp)
+        pi = initpi(k, n, null.comp, randomstart)
 
 
-        if(!is.element(mixcompdist, c("normal","uniform","halfuniform","+uniform","-uniform"))) stop("Error: invalid type of mixcompdist")
-        if(mixcompdist=="normal") g=normalmix(pi,rep(0,k),mixsd)
-        if(mixcompdist=="uniform") g=unimix(pi,-mixsd,mixsd)
-        if(mixcompdist=="+uniform") g = unimix(pi,rep(0,k),mixsd)
-        if(mixcompdist=="-uniform") g = unimix(pi,-mixsd,rep(0,k))
+        if(!is.element(mixcompdist, c("normal", "uniform", "halfuniform", "+uniform", "-uniform"))) stop("Error: invalid type of mixcompdist")
+        if(mixcompdist=="normal") g=normalmix(pi, rep(0, k), mixsd)
+        if(mixcompdist=="uniform") g=unimix(pi, -mixsd, mixsd)
+        if(mixcompdist=="+uniform") g = unimix(pi, rep(0,k), mixsd)
+        if(mixcompdist=="-uniform") g = unimix(pi, -mixsd, rep(0, k))
         if(mixcompdist=="halfuniform"){
             if(min(mixsd)>0){ #simply reflect the components
                 g = unimix(c(pi,pi)/2,c(-mixsd,rep(0,k)),c(rep(0,k),mixsd))
@@ -325,8 +350,8 @@ ash.workhorse = function(betahat, sebetahat = NULL,
                 g = unimix(c(pi, pi[-null.comp]) / 2,
                            c(-mixsd, rep(0, k - 1)),
                            c(rep(0, k), mixsd[ - null.comp]))
-                prior = c(prior,prior[-null.comp])
-                pi = c(pi,pi[-null.comp])
+                prior = c(prior, prior[-null.comp])
+                pi = c(pi, pi[-null.comp])
             }
         }
     }
@@ -351,7 +376,17 @@ ash.workhorse = function(betahat, sebetahat = NULL,
 
     n = length(betahat)
 
-    if (outputlevel > 0) {
+    ## specialized functions when likelihood is mixture
+    if (!is.null(errordist)) {
+        continue_out  <- FALSE
+        postmixout    <- post_mix_dist(g = g, betahat = betahat, errordist = errordist)
+        PosteriorMean <- mix_mean_array(postmixout)
+        ZeroProb      <- mix_probzero_array(postmixout)
+    } else {
+        continue_out <- TRUE
+    }
+
+    if (outputlevel > 0 & continue_out) {
         PosteriorMean = rep(0,length = n)
         PosteriorSD = rep(0,length = n)
         PosteriorMean[completeobs] = postmean(pi.fit$g,
@@ -365,7 +400,7 @@ ash.workhorse = function(betahat, sebetahat = NULL,
         PosteriorMean[!completeobs] = calc_mixmean(pi.fit$g)
         PosteriorSD[!completeobs] = calc_mixsd(pi.fit$g)
     }
-    if (outputlevel > 1) {
+    if (outputlevel > 1 & continue_out) {
         ZeroProb = rep(0,length = n)
         NegativeProb = rep(0,length = n)
         ZeroProb[completeobs] = colSums(comppostprob(pi.fit$g,
@@ -388,7 +423,7 @@ ash.workhorse = function(betahat, sebetahat = NULL,
         svalue = qval.from.lfdr(lfsr)
     }
 
-    if(outputlevel>3){ #compute the flash output
+    if(outputlevel>3 & continue_out){ #compute the flash output
         kk = ncomp(pi.fit$g)
         comp_postprob = matrix(0,nrow = kk, ncol = n)
         comp_postmean = matrix(0,nrow = kk, ncol = n)
