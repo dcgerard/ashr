@@ -212,22 +212,3 @@ test_that("uuconv_dense works", {
     expect_equal(like_val, my_val)
 }
 )
-
-
-
-test_that("t_to_mix is approximately a t", {
-    mu <- 0
-    sig <- 1
-    df <- 4
-
-    g <- t_to_mix(mean = mu, sd = sig, df = df, gridsize = 20)
-
-    samp <- rnormalmix(n = 10000, mixdense = g)
-
-    pseq <- seq(0.01, 0.99, length = 1000)
-    empq <- quantile(samp, probs = pseq)
-    theoq <- qt(p = pseq, df = df)
-
-    plot(theoq, empq)
-}
-)

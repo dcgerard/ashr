@@ -836,21 +836,21 @@ calc_nulllik_array <- function(betahat, errordist) {
 #' This is based on the representation of the t as an inverse-gamma
 #' scaled-mixture of Gaussians.
 #'
-#' @param mean The mean of the t-distribution.
-#' @param sd The standard deviation of the t-distribution.
+#' @param mu The mean of the t-distribution.
+#' @param sig The standard deviation of the t-distribution.
 #' @param df The degrees of freedom of the t-distribution.
 #' @param gridsize The number of mixture components to use. The larger the more accurate the approximation, but the higher the computational load --- especially if you intend to use this for \code{\link{ash.workhorse}}.
 #'
 #' @export
 #'
 #' @author David Gerard
-t_to_mix <- function(mean, sd, df, gridsize = 20) {
+t_to_mix <- function(mu, sig, df, gridsize = 20) {
     pgrid <- seq(1 / 10000, 1 - 1 / 10000, length = gridsize + 1)
 
     shape_param <- df / 2
-    rate_param  <- df * sd ^ 2 / 2
+    rate_param  <- df * sig ^ 2 / 2
 
-    mean_grid      <- rep(mean, length = gridsize)
+    mean_grid      <- rep(mu, length = gridsize)
     temp_grid <- qgamma(p = pgrid, shape = shape_param, rate = rate_param)
     precision_grid <- (temp_grid[2:length(temp_grid)] +
                        temp_grid[1:(length(temp_grid) - 1)]) / 2

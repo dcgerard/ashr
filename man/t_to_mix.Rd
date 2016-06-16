@@ -5,12 +5,12 @@
 \title{Generate an object of class \code{normalmix} that is an
 approximation to a t-distribution.}
 \usage{
-t_to_mix(mean, sd, df, gridsize = 20)
+t_to_mix(mu, sig, df, gridsize = 20)
 }
 \arguments{
-\item{mean}{The mean of the t-distribution.}
+\item{mu}{The mean of the t-distribution.}
 
-\item{sd}{The standard deviation of the t-distribution.}
+\item{sig}{The standard deviation of the t-distribution.}
 
 \item{df}{The degrees of freedom of the t-distribution.}
 
