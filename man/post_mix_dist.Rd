@@ -20,15 +20,20 @@ A list of arrays containing the parameters for the posterior.
 The first dimension is the observations, the second is the mixture
 components for the prior, and the third is the mixture components of
 the error.
-\item{weights}{The mixing proportions}
-\item{means} The location parameter if the posterior is either a mixture
-of normals or truncated normals.
-\item{variances} The scale parameter if the posterior is either a mixture
-of normals or truncated normals.
-\item{lower} The lower bound of support if the posterior is either a mixture
-of truncated normals of uniforms.
-\item{upper} The upper bound of support if the posterior is either a mixture
-of truncated normals of uniforms.
+
+    \code{weights} The mixing proportions
+
+    \code{means} The location parameter if the posterior is either
+    a mixture of normals or truncated normals.
+
+    \code{variances} The scale parameter if the posterior is either
+    a mixture of normals or truncated normals.
+
+    \code{lower} The lower bound of support if the posterior is
+    either a mixture of truncated normals of uniforms.
+
+    \code{upper} The upper bound of support if the posterior is
+    either a mixture of truncated normals of uniforms.
 }
 \description{
 Generate the posterior distribution when the error distribution is

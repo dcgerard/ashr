@@ -254,6 +254,20 @@ ash.workhorse = function(betahat, sebetahat = NULL,
     model       <- match.arg(model)
 
     assertthat::assert_that(is.null(errordist) | is.list(errordist))
+
+    ## Normal mixtures prior and t-likelihood.
+    if (mixcompdist == "normal" & !is.null(df) & is.null(errordist)) {
+        errordist <- list()
+        if (length(df) == 1) {
+            df <- rep(df, length = length(betahat))
+        }
+        for (index in 1:length(betahat)) {
+            errordist[[index]] <- t_to_mix(mu = 0, sig = sebetahat[index],
+                                           df = df[index], gridsize = 70)
+        }
+    }
+
+
     if (!is.null(errordist)) {
         assertthat::are_equal(length(betahat), length(errordist))
         class_vec <- sapply(errordist, class)

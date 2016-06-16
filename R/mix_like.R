@@ -342,15 +342,20 @@ uuconv_dense <- function(g, errordist, x) {
 #' The first dimension is the observations, the second is the mixture
 #' components for the prior, and the third is the mixture components of
 #' the error.
-#' \item{weights}{The mixing proportions}
-#' \item{means} The location parameter if the posterior is either a mixture
-#' of normals or truncated normals.
-#' \item{variances} The scale parameter if the posterior is either a mixture
-#' of normals or truncated normals.
-#' \item{lower} The lower bound of support if the posterior is either a mixture
-#' of truncated normals of uniforms.
-#' \item{upper} The upper bound of support if the posterior is either a mixture
-#' of truncated normals of uniforms.
+#'
+#'     \code{weights} The mixing proportions
+#'
+#'     \code{means} The location parameter if the posterior is either
+#'     a mixture of normals or truncated normals.
+#'
+#'     \code{variances} The scale parameter if the posterior is either
+#'     a mixture of normals or truncated normals.
+#'
+#'     \code{lower} The lower bound of support if the posterior is
+#'     either a mixture of truncated normals of uniforms.
+#'
+#'     \code{upper} The upper bound of support if the posterior is
+#'     either a mixture of truncated normals of uniforms.
 #'
 #' @author David Gerard
 post_mix_dist <- function(g, betahat, errordist) {
@@ -409,7 +414,7 @@ post_mix_dist.normalnormal <- function(g, betahat, errordist) {
         cerr  <- errordist[[seindex]]
         cmean <- outer(g$mean, cerr$mean, FUN = "+")
         csd   <- sqrt(outer(g$sd ^ 2, cerr$sd ^2, FUN = "+"))
-        carray[seindex, , ] <- dnorm(x = betahat[seindex], mean = cmean, sd = csd)
+        carray[seindex, , ] <- stats::dnorm(x = betahat[seindex], mean = cmean, sd = csd)
     }
 
 
@@ -837,9 +842,12 @@ calc_nulllik_array <- function(betahat, errordist) {
 #' scaled-mixture of Gaussians.
 #'
 #' @param mu The mean of the t-distribution.
-#' @param sig The standard deviation of the t-distribution.
+#' @param sig The scale parameter of the t-distribution.
 #' @param df The degrees of freedom of the t-distribution.
-#' @param gridsize The number of mixture components to use. The larger the more accurate the approximation, but the higher the computational load --- especially if you intend to use this for \code{\link{ash.workhorse}}.
+#' @param gridsize The number of mixture components to use. The larger
+#'     the more accurate the approximation, but the higher the
+#'     computational load --- especially if you intend to use this for
+#'     \code{\link{ash.workhorse}}.
 #'
 #' @export
 #'
@@ -851,7 +859,7 @@ t_to_mix <- function(mu, sig, df, gridsize = 20) {
     rate_param  <- df * sig ^ 2 / 2
 
     mean_grid      <- rep(mu, length = gridsize)
-    temp_grid <- qgamma(p = pgrid, shape = shape_param, rate = rate_param)
+    temp_grid      <- stats::qgamma(p = pgrid, shape = shape_param, rate = rate_param)
     precision_grid <- (temp_grid[2:length(temp_grid)] +
                        temp_grid[1:(length(temp_grid) - 1)]) / 2
 
@@ -860,6 +868,42 @@ t_to_mix <- function(mu, sig, df, gridsize = 20) {
     tapprox <- normalmix(pi = weight_grid, mean = mean_grid, sd = 1 / sqrt(precision_grid))
 
     return(tapprox)
+}
+
+
+
+#' Generate an object of class \code{normalmix} that is an
+#' approximation to a Laplace distribution.
+#'
+#' This is based on the representation of the Laplace distribution as
+#' an exponential scale mixtures of normals.
+#'
+#' @param mu The location of the Laplace distribution.
+#' @param sig The scale parameter of the Laplace distribution.
+#' @param gridsize The number of mixture components to use. The larger
+#'     the more accurate the approximation, but the higher the
+#'     computational load --- especially if you intend to use this for
+#'     \code{\link{ash.workhorse}}.
+#'
+#' @export
+#'
+#' @author David Gerard
+laplace_to_mix <- function(mu, sig, gridsize = 20) {
+    if (!requireNamespace("VGAM", quietly = TRUE)) {
+        stop("VGAM must be installed to use laplace_to_mix")
+    }
+    pgrid <- seq(1 / 10000, 1 - 1 / 10000, length = gridsize + 1)
+
+    mean_grid <- rep(mu, length = gridsize)
+    temp_grid <- VGAM::qrayleigh(p = pgrid, scale = sig ^ 2)
+    var_grid  <- (temp_grid[2:length(temp_grid)] +
+                  temp_grid[1:(length(temp_grid) - 1)]) / 2
+
+    weight_grid <- rep(1 / gridsize, length = gridsize)
+
+    lapprox <- normalmix(pi = weight_grid, mean = mean_grid, sd = sqrt(var_grid))
+
+    return(lapprox)
 }
 
 #' Random draw from a mixture of normals.
@@ -890,6 +934,6 @@ runimix <- function(n, mixdense) {
     assertthat::are_equal(class(mixdense), "unimix")
     k <- length(mixdense$pi)
     which_uni <- sample(1:k, size = n, prob = mixdense$pi, replace = TRUE)
-    samp <- stats::runif(n = n, min = mixdense$a[which_norm], max = mixdense$b[which_norm])
+    samp <- stats::runif(n = n, min = mixdense$a[which_uni], max = mixdense$b[which_uni])
     return(samp)
 }
