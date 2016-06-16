@@ -246,6 +246,13 @@ ash.workhorse = function(betahat, sebetahat = NULL,
         sebetahat <- rep(NA, length = length(betahat))
     }
 
+    ## 1.Handling Input Parameters
+
+    method      <- match.arg(method)
+    mixcompdist <- match.arg(mixcompdist)
+    optmethod   <- match.arg(optmethod)
+    model       <- match.arg(model)
+
     assertthat::assert_that(is.null(errordist) | is.list(errordist))
     if (!is.null(errordist)) {
         assertthat::are_equal(length(betahat), length(errordist))
@@ -301,17 +308,14 @@ ash.workhorse = function(betahat, sebetahat = NULL,
             }
         } else if (outputlevel > 3) {
             stop("outputlevel > 3 not supported when errordist is not NULL")
+        } else if (model == "ET") {
+            stop("model = \"ET\" not supported when errordist is not NULL")
         }
     }
     assertthat::are_equal(length(betahat), length(sebetahat))
 
 
-    ## 1.Handling Input Parameters
 
-    method      <- match.arg(method)
-    mixcompdist <- match.arg(mixcompdist)
-    optmethod   <- match.arg(optmethod)
-    model       <- match.arg(model)
 
     ## Capture all arguments into a list
     oldargs <- mget(names(formals()), sys.frame(sys.nframe()))
@@ -406,7 +410,7 @@ ash.workhorse = function(betahat, sebetahat = NULL,
     ## specialized functions when likelihood is mixture
     if (!is.null(errordist)) {
         continue_out  <- FALSE
-        postmixout    <- post_mix_dist(g = g, betahat = betahat,
+        postmixout    <- post_mix_dist(g = pi.fit$g, betahat = betahat,
                                        errordist = errordist)
         PosteriorMean <- mix_mean_array(mixdist = postmixout)
         PosteriorSD   <- mix_sd_array(mixdist = postmixout)
@@ -418,7 +422,7 @@ ash.workhorse = function(betahat, sebetahat = NULL,
         lfdr          <- ZeroProb
         qvalue        <- qval.from.lfdr(lfdr)
         svalue        <- qval.from.lfdr(lfsr)
-        loglik        <- calc_loglik_array(g = g, betahat = betahat,
+        loglik        <- calc_loglik_array(g = pi.fit$g, betahat = betahat,
                                            errordist = errordist)
         logLR         <- loglik - calc_nulllik_array(betahat = betahat,
                                             errordist = errordist)

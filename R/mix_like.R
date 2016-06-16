@@ -666,13 +666,18 @@ mix_mean_array.normalmix_array <- function(mixdist) {
 }
 mix_mean_array.truncnormalmix_array <- function(mixdist) {
     which_pointmass <- mixdist$variances == 0 | (mixdist$lower == 0 & mixdist$upper == 0)
+
     sdarray <- sqrt(mixdist$variances)
     alpha <- (mixdist$lower - mixdist$means) / sdarray
     beta  <- (mixdist$upper - mixdist$means) / sdarray
-    Z <- pnorm(beta) - pnorm(alpha)
-    num <- dnorm(alpha) - dnorm(beta)
+    Z <- stats::pnorm(beta) - stats::pnorm(alpha)
+    num <- stats::dnorm(alpha) - stats::dnorm(beta)
+    postmeans <- mixdist$mean + num / Z * sdarray
 
-    postmeans <- mixdist$mean - num / Z * sdarray
+    ## truncnorm method
+    ## postmeans <- truncnorm::etruncnorm(a = mixdist$lower, b = mixdist$upper,
+    ##                                    mean = mixdist$means, sd = sqrt(mixdist$variances))
+    ## postmeans <- array(postmeans, dim = dim(mixdist$means))
     postmeans[which_pointmass] <- 0
     return(apply(postmeans * mixdist$weights, 1, sum))
 }
@@ -686,7 +691,7 @@ mix_mean_array.unimix_array <- function(mixdist) {
 #'
 #' @author David Gerard
 mix_probzero_array <- function(mixdist) {
-    UseMethod("mix_mean_array")
+    UseMethod("mix_probzero_array")
 }
 mix_probzero_array.default <- function(mixdist) {
     stop(paste("Error: Invalid class", class(mixdist), "for argument in", match.call()))
@@ -727,17 +732,27 @@ mix_sd_array.normalmix_array <- function(mixdist) {
 }
 mix_sd_array.truncnormalmix_array <- function(mixdist) {
     which_pointmass <- mixdist$variances == 0 | (mixdist$lower == 0 & mixdist$upper == 0)
+
     sdarray <- sqrt(mixdist$variances)
     alpha <- (mixdist$lower - mixdist$means) / sdarray
     beta  <- (mixdist$upper - mixdist$means) / sdarray
     Z <- stats::pnorm(beta) - stats::pnorm(alpha)
     num <- stats::dnorm(alpha) - stats::dnorm(beta)
+    postmeans <- mixdist$mean + num / Z * sdarray
 
-    postmeans <- mixdist$mean - num / Z * sdarray
+    ## truncnorm method
+    ## postmeans <- truncnorm::etruncnorm(a = mixdist$lower, b = mixdist$upper,
+    ##                                    mean = mixdist$means, sd = sqrt(mixdist$variances))
+    ## postmeans <- array(postmeans, dim = dim(mixdist$means))
     postmeans[which_pointmass] <- 0
 
     postvars <- (1 + (alpha * stats::dnorm(alpha) - beta * stats::dnorm(beta)) / Z -
                  ((stats::dnorm(alpha) - stats::dnorm(beta)) / Z) ^ 2) * mixdist$variances
+
+    ## truncnorm method
+    ## postvars <- truncnorm::vtruncnorm(a = mixdist$lower, b = mixdist$upper,
+    ##                                   mean = mixdist$means, sd = sqrt(mixdist$variances))
+    ## postvars <- array(postvars, dim = dim(mixdist$means))
     postvars[which_pointmass] <- 0
 
     second_moment <- apply(mixdist$weights * (postmeans ^ 2 + postvars), 1, sum)
