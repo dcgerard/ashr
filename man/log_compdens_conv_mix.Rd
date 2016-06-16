@@ -2,7 +2,8 @@
 % Please edit documentation in R/mix_like.R
 \name{log_compdens_conv_mix}
 \alias{log_compdens_conv_mix}
-\title{Find log-component density convolution when error distribution is a mixture.}
+\title{Find log-component density convolution when error distribution is a
+mixture.}
 \usage{
 log_compdens_conv_mix(g, betahat, errordist)
 }

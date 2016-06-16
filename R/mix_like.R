@@ -806,6 +806,8 @@ mix_cdf_array.unimix_array <- function(mixdist, q) {
 
 #' Calculate log-likelihood.
 #'
+#' @author David Gerard
+#'
 #' @inheritParams log_compdens_conv_mix
 calc_loglik_array <- function(g, betahat, errordist) {
     matrix_llik <- log_compdens_conv_mix(g, betahat, errordist)
@@ -815,9 +817,79 @@ calc_loglik_array <- function(g, betahat, errordist) {
     return(llike)
 }
 
-
+#' Calculate the log-likelihood when all null.
+#'
+#' @author David Gerard
+#'
+#' @inheritParams log_compdens_conv_mix
 calc_nulllik_array <- function(betahat, errordist) {
     g <- ashr::normalmix(pi = 1, mean = 0, sd = 0)
     matrix_llik <- log_compdens_conv_mix(g, betahat, errordist)
     return(sum(matrix_llik))
+}
+
+
+
+#' Generate an object of class \code{normalmix} that is an
+#' approximation to a t-distribution.
+#'
+#' This is based on the representation of the t as an inverse-gamma
+#' scaled-mixture of Gaussians.
+#'
+#' @param mean The mean of the t-distribution.
+#' @param sd The standard deviation of the t-distribution.
+#' @param df The degrees of freedom of the t-distribution.
+#' @param gridsize The number of mixture components to use. The larger the more accurate the approximation, but the higher the computational load --- especially if you intend to use this for \code{\link{ash.workhorse}}.
+#'
+#' @export
+#'
+#' @author David Gerard
+t_to_mix <- function(mean, sd, df, gridsize = 20) {
+    pgrid <- seq(1 / 10000, 1 - 1 / 10000, length = gridsize + 1)
+
+    shape_param <- df / 2
+    rate_param  <- df * sd ^ 2 / 2
+
+    mean_grid      <- rep(mean, length = gridsize)
+    temp_grid <- qgamma(p = pgrid, shape = shape_param, rate = rate_param)
+    precision_grid <- (temp_grid[2:length(temp_grid)] +
+                       temp_grid[1:(length(temp_grid) - 1)]) / 2
+
+    weight_grid <- rep(1 / gridsize, length = gridsize)
+
+    tapprox <- normalmix(pi = weight_grid, mean = mean_grid, sd = 1 / sqrt(precision_grid))
+
+    return(tapprox)
+}
+
+#' Random draw from a mixture of normals.
+#'
+#' @param n the number of samples to draw.
+#' @param mixdense An object of class \code{normalmix}.
+#'
+#' @author David Gerard
+#'
+#' @export
+rnormalmix <- function(n, mixdense) {
+    assertthat::are_equal(class(mixdense), "normalmix")
+    k <- length(mixdense$pi)
+    which_norm <- sample(1:k, size = n, prob = mixdense$pi, replace = TRUE)
+    samp <- stats::rnorm(n = n, mean = mixdense$mean[which_norm], sd = mixdense$sd[which_norm])
+    return(samp)
+}
+
+#' Random draw from a mixture of uniforms.
+#'
+#' @param n the number of samples to draw.
+#' @param mixdense An object of class \code{unimix}.
+#'
+#' @author David Gerard
+#'
+#' @export
+runimix <- function(n, mixdense) {
+    assertthat::are_equal(class(mixdense), "unimix")
+    k <- length(mixdense$pi)
+    which_uni <- sample(1:k, size = n, prob = mixdense$pi, replace = TRUE)
+    samp <- stats::runif(n = n, min = mixdense$a[which_norm], max = mixdense$b[which_norm])
+    return(samp)
 }
