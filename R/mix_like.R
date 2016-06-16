@@ -703,3 +703,106 @@ mix_probzero_array.unimix_array <- function(mixdist) {
     which_pointmass <- mixdist$lower == 0 & mixdist$upper == 0
     return(apply(mixdist$weights * which_pointmass, 1, sum))
 }
+
+
+
+#' Compute SD from a mix_array.
+#'
+#' @param mixdist Of class \code{unimix_array},
+#'     \code{normalmix_array}, or \code{truncnormalmix_array}. These
+#'     are the classes of the output from \code{\link{post_mix_dist}}.
+#'
+#'
+#' @return The posterior standard deviations of the location
+#'     parameters.
+#'
+#' @author David Gerard
+mix_sd_array <- function(mixdist) {
+      UseMethod("mix_sd_array")
+}
+mix_sd_array.normalmix_array <- function(mixdist) {
+    second_moment <- apply(mixdist$weights * (mixdist$means ^ 2 + mixdist$variances), 1, sum)
+    first_moment2 <- apply(mixdist$weights * mixdist$means, 1, sum) ^ 2
+    return(sqrt(second_moment - first_moment2))
+}
+mix_sd_array.truncnormalmix_array <- function(mixdist) {
+    which_pointmass <- mixdist$variances == 0 | (mixdist$lower == 0 & mixdist$upper == 0)
+    sdarray <- sqrt(mixdist$variances)
+    alpha <- (mixdist$lower - mixdist$means) / sdarray
+    beta  <- (mixdist$upper - mixdist$means) / sdarray
+    Z <- stats::pnorm(beta) - stats::pnorm(alpha)
+    num <- stats::dnorm(alpha) - stats::dnorm(beta)
+
+    postmeans <- mixdist$mean - num / Z * sdarray
+    postmeans[which_pointmass] <- 0
+
+    postvars <- (1 + (alpha * stats::dnorm(alpha) - beta * stats::dnorm(beta)) / Z -
+                 ((stats::dnorm(alpha) - stats::dnorm(beta)) / Z) ^ 2) * mixdist$variances
+    postvars[which_pointmass] <- 0
+
+    second_moment <- apply(mixdist$weights * (postmeans ^ 2 + postvars), 1, sum)
+    first_moment2 <- apply(mixdist$weights * postmeans, 1, sum) ^ 2
+    return(sqrt(second_moment - first_moment2))
+}
+mix_sd_array.unimix_array <- function(mixdist) {
+    which_pointmass <- mixdist$lower == 0 & mixdist$upper == 0
+    postmeans <- (mixdist$upper + mixdist$lower) / 2
+    postvars  <- (mixdist$upper - mixdist$lower) ^ 2 / 12
+    postmeans[which_pointmass] <- 0
+    postvars[which_pointmass] <- 0
+    second_moment <- apply(mixdist$weights * (postmeans ^ 2 + postvars), 1, sum)
+    first_moment2 <- apply(mixdist$weights * postmeans, 1, sum) ^ 2
+    return(sqrt(second_moment - first_moment2))
+}
+
+
+#' Compute cdf from a mix_array.
+#'
+#' @param mixdist Of class \code{unimix_array},
+#'     \code{normalmix_array}, or \code{truncnormalmix_array}. These
+#'     are the classes of the output from \code{\link{post_mix_dist}}.
+#' @param q The quantile.
+#'
+#' @return The probability of being less than or equal to q.
+#'
+#' @author David Gerard
+mix_cdf_array <- function(mixdist, q) {
+      UseMethod("mix_cdf_array")
+}
+mix_cdf_array.normalmix_array <- function(mixdist, q) {
+    pless <- stats::pnorm(q = q, mean = mixdist$means, sd = sqrt(mixdist$variances))
+    return(apply(pless * mixdist$weights, 1, sum))
+}
+mix_cdf_array.truncnormalmix_array <- function(mixdist, q) {
+    which_pointmass <- mixdist$variances == 0 | (mixdist$lower == 0 & mixdist$upper == 0)
+    pless <- truncnorm::ptruncnorm(q = q, a = mixdist$lower, b = mixdist$upper,
+                                   mean = mixdist$means, sd = sqrt(mixdist$variances))
+    pless <- array(pless, dim = dim(mixdist$means))
+    pless[which_pointmass] <- (q >= 0) * 1
+    return(apply(pless * mixdist$weights, 1, sum))
+}
+mix_cdf_array.unimix_array <- function(mixdist, q) {
+    which_pointmass <- mixdist$lower == 0 & mixdist$upper == 0
+    pless <- stats::punif(q = q, min = mixdist$lower, max = mixdist$upper)
+    pless[which_pointmass] <- (q >= 0) * 1
+    return(apply(pless * mixdist$weights, 1, sum))
+}
+
+
+#' Calculate log-likelihood.
+#'
+#' @inheritParams log_compdens_conv_mix
+calc_loglik_array <- function(g, betahat, errordist) {
+    matrix_llik <- log_compdens_conv_mix(g, betahat, errordist)
+    maxmat <- apply(matrix_llik, 2, max)
+    matrix_llik_norm <- t(t(matrix_llik) - maxmat)
+    llike <- sum(log(colSums(exp(matrix_llik_norm) * g$pi)) + maxmat)
+    return(llike)
+}
+
+
+calc_nulllik_array <- function(betahat, errordist) {
+    g <- ashr::normalmix(pi = 1, mean = 0, sd = 0)
+    matrix_llik <- log_compdens_conv_mix(g, betahat, errordist)
+    return(sum(matrix_llik))
+}

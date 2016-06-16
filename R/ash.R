@@ -275,6 +275,33 @@ ash.workhorse = function(betahat, sebetahat = NULL,
                 sebetahat[seindex] <- sqrt(second_moment - first_moment2)
             }
         }
+
+        ## Make sure arguments are correct if errordist is given
+        if (nonzeromode) {
+            stop("nonzeromode = TRUE not supported when errordist is not NULL")
+        } else if (!is.null(g)) { # check where pointmass is
+            if (class(g) == "normalmix") {
+                which_pointmass <- abs(g$sd) < 10 ^ -14
+                if (sum(pointmass) > 1) {
+                    stop("g may only have a pointmass at only one location")
+                } else if (sum(pointmass) == 1) {
+                    if (abs(g$mean[which_pointmass]) > 10 ^ -14) {
+                        stop("g may only have a pointmass at 0.")
+                    }
+                }
+            } else if (class(g) == "unimix") {
+                which_pointmass <- abs(g$a - g$b) < 10^-14
+                if (sum(pointmass) > 1) {
+                    stop("g may only have a pointmass at only one location")
+                } else if (sum(pointmass) == 1) {
+                    if (abs(g$a[which_pointmass]) > 10 ^ -14) {
+                        stop("g may only have a pointmass at 0.")
+                    }
+                }
+            }
+        } else if (outputlevel > 3) {
+            stop("outputlevel > 3 not supported when errordist is not NULL")
+        }
     }
     assertthat::are_equal(length(betahat), length(sebetahat))
 
@@ -379,9 +406,22 @@ ash.workhorse = function(betahat, sebetahat = NULL,
     ## specialized functions when likelihood is mixture
     if (!is.null(errordist)) {
         continue_out  <- FALSE
-        postmixout    <- post_mix_dist(g = g, betahat = betahat, errordist = errordist)
-        PosteriorMean <- mix_mean_array(postmixout)
-        ZeroProb      <- mix_probzero_array(postmixout)
+        postmixout    <- post_mix_dist(g = g, betahat = betahat,
+                                       errordist = errordist)
+        PosteriorMean <- mix_mean_array(mixdist = postmixout)
+        PosteriorSD   <- mix_sd_array(mixdist = postmixout)
+        ZeroProb      <- mix_probzero_array(mixdist = postmixout)
+        NegativeProb  <- mix_cdf_array(mixdist = postmixout, q = 0) - ZeroProb
+        lfsr          <- compute_lfsr(NegativeProb, ZeroProb)
+        PositiveProb  <- 1 - NegativeProb - ZeroProb
+        PositiveProb  <- ifelse(PositiveProb<0, 0, PositiveProb)
+        lfdr          <- ZeroProb
+        qvalue        <- qval.from.lfdr(lfdr)
+        svalue        <- qval.from.lfdr(lfsr)
+        loglik        <- calc_loglik_array(g = g, betahat = betahat,
+                                           errordist = errordist)
+        logLR         <- loglik - calc_nulllik_array(betahat = betahat,
+                                            errordist = errordist)
     } else {
         continue_out <- TRUE
     }
@@ -414,10 +454,10 @@ ash.workhorse = function(betahat, sebetahat = NULL,
                                              df) - ZeroProb[completeobs]
         ##FOR MISSING OBSERVATIONS, USE THE PRIOR INSTEAD OF THE POSTERIOR
         ZeroProb[!completeobs] = sum(mixprop(pi.fit$g)[comp_sd(pi.fit$g) == 0])
-        NegativeProb[!completeobs] = mixcdf(pi.fit$g,0)
-        lfsr = compute_lfsr(NegativeProb,ZeroProb)
+        NegativeProb[!completeobs] = mixcdf(pi.fit$g, 0)
+        lfsr = compute_lfsr(NegativeProb, ZeroProb)
         PositiveProb = 1 - NegativeProb - ZeroProb
-        PositiveProb = ifelse(PositiveProb<0,0,PositiveProb) #deal with numerical issues that lead to numbers <0
+        PositiveProb = ifelse(PositiveProb<0, 0, PositiveProb) #deal with numerical issues that lead to numbers <0
         lfdr = ZeroProb
         qvalue = qval.from.lfdr(lfdr)
         svalue = qval.from.lfdr(lfsr)
@@ -473,8 +513,10 @@ ash.workhorse = function(betahat, sebetahat = NULL,
         }
     }
 
-    loglik = calc_loglik(pi.fit$g, betahat[completeobs], sebetahat[completeobs],df, model)
-    logLR = loglik - calc_null_loglik(betahat[completeobs],sebetahat[completeobs],df,model)
+    if (continue_out) {
+        loglik = calc_loglik(pi.fit$g, betahat[completeobs], sebetahat[completeobs],df, model)
+        logLR = loglik - calc_null_loglik(betahat[completeobs],sebetahat[completeobs],df,model)
+    }
 
     ## 5. Returning the result
 

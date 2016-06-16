@@ -19,12 +19,12 @@ test_that("post_mix_dist.normalnormal", {
     betahat <- rnorm(n)
 
     postout <- post_mix_dist.normalnormal(g = g, betahat = betahat, errordist = errordist)
-
     expect_true(all(abs(apply(postout$weights, 1, sum) - 1) < 10 ^ -14))
-
-    mixout <- mix_mean_array(postout)
-
+    meanout      <- mix_mean_array(postout)
     probzero_out <- mix_probzero_array(postout)
+    sdout        <- mix_sd_array(postout)
+    pless        <- mix_cdf_array(postout, 0)
+    expect_true(all(pless >= 0 & pless <= 1))
 }
 )
 
@@ -48,9 +48,11 @@ test_that("post_mix_dist.normaluni", {
     postout <- post_mix_dist.normaluni(g = g, betahat = betahat, errordist = errordist)
 
     expect_true(all(abs(apply(postout$weights, 1, sum) - 1) < 10 ^ -14))
-
-    mixout <- mix_mean_array(postout)
+    meanout      <- mix_mean_array(postout)
     probzero_out <- mix_probzero_array(postout)
+    sdout        <- mix_sd_array(postout)
+    pless        <- mix_cdf_array(postout, 0)
+    expect_true(all(pless >= 0 & pless <= 1))
 }
 )
 
@@ -76,8 +78,11 @@ test_that("post_mix_dist.uninormal", {
 
     expect_true(all(abs(apply(postout$weights, 1, sum) - 1) < 10 ^ -14))
 
-    mixout <- mix_mean_array(postout)
+    meanout      <- mix_mean_array(postout)
     probzero_out <- mix_probzero_array(postout)
+    sdout        <- mix_sd_array(postout)
+    pless        <- mix_cdf_array(postout, 0)
+    expect_true(all(pless >= 0 & pless <= 1))
 }
 )
 
@@ -102,8 +107,10 @@ test_that("post_mix_dist.uniuni", {
     postout <- post_mix_dist.uniuni(g = g, betahat = betahat, errordist = errordist)
 
     expect_true(all(abs(apply(postout$weights, 1, sum) - 1) < 10 ^ -14))
-
-    mixout <- mix_mean_array(postout)
+    meanout      <- mix_mean_array(postout)
     probzero_out <- mix_probzero_array(postout)
+    sdout        <- mix_sd_array(postout)
+    pless        <- mix_cdf_array(postout, 0)
+    expect_true(all(pless >= 0 & pless <= 1))
 }
 )
