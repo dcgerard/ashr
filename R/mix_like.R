@@ -675,16 +675,33 @@ mix_mean_array.truncnormalmix_array <- function(mixdist) {
     sdarray <- sqrt(mixdist$variances)
     alpha <- (mixdist$lower - mixdist$means) / sdarray
     beta  <- (mixdist$upper - mixdist$means) / sdarray
-    Z <- stats::pnorm(beta) - stats::pnorm(alpha)
-    num <- stats::dnorm(alpha) - stats::dnorm(beta)
+
+    ## numerically unstable way
+    ## Z <- stats::pnorm(beta) - stats::pnorm(alpha)
+    ## num <- stats::dnorm(alpha) - stats::dnorm(beta)
+    ## postmeans <- mixdist$mean + num / Z * sdarray
+    ## postmeans[which_pointmass] <- 0
+    ## outvec1 <- apply(postmeans * mixdist$weights, 1, sum)
+    ## badmeans <- postmeans == Inf
+
+    ## numerically stable way
+    which_switch <- alpha > 0
+    Z                  <- array(NA, dim = dim(alpha))
+    num                <- array(NA, dim = dim(alpha))
+    Z[!which_switch]   <- stats::pnorm(beta[!which_switch]) - stats::pnorm(alpha[!which_switch])
+    num[!which_switch] <- stats::dnorm(alpha[!which_switch]) - stats::dnorm(beta[!which_switch])
+    Z[which_switch]    <- stats::pnorm(-alpha[which_switch]) - stats::pnorm(-beta[which_switch])
+    num[which_switch]  <- stats::dnorm(-alpha[which_switch]) - stats::dnorm(-beta[which_switch])
     postmeans <- mixdist$mean + num / Z * sdarray
+    postmeans[which_pointmass] <- 0
+    outvec <- apply(postmeans * mixdist$weights, 1, sum)
 
     ## truncnorm method
     ## postmeans <- truncnorm::etruncnorm(a = mixdist$lower, b = mixdist$upper,
     ##                                    mean = mixdist$means, sd = sqrt(mixdist$variances))
     ## postmeans <- array(postmeans, dim = dim(mixdist$means))
-    postmeans[which_pointmass] <- 0
-    return(apply(postmeans * mixdist$weights, 1, sum))
+
+    return(outvec)
 }
 mix_mean_array.unimix_array <- function(mixdist) {
     return(apply((mixdist$upper + mixdist$lower) / 2 * mixdist$weights, 1, sum))
@@ -741,24 +758,29 @@ mix_sd_array.truncnormalmix_array <- function(mixdist) {
     sdarray <- sqrt(mixdist$variances)
     alpha <- (mixdist$lower - mixdist$means) / sdarray
     beta  <- (mixdist$upper - mixdist$means) / sdarray
-    Z <- stats::pnorm(beta) - stats::pnorm(alpha)
-    num <- stats::dnorm(alpha) - stats::dnorm(beta)
+    which_switch <- alpha > 0
+    Z                  <- array(NA, dim = dim(alpha))
+    num                <- array(NA, dim = dim(alpha))
+    Z[!which_switch]   <- stats::pnorm(beta[!which_switch]) - stats::pnorm(alpha[!which_switch])
+    num[!which_switch] <- stats::dnorm(alpha[!which_switch]) - stats::dnorm(beta[!which_switch])
+    Z[which_switch]    <- stats::pnorm(-alpha[which_switch]) - stats::pnorm(-beta[which_switch])
+    num[which_switch]  <- stats::dnorm(-alpha[which_switch]) - stats::dnorm(-beta[which_switch])
     postmeans <- mixdist$mean + num / Z * sdarray
+    postmeans[which_pointmass] <- 0
 
     ## truncnorm method
     ## postmeans <- truncnorm::etruncnorm(a = mixdist$lower, b = mixdist$upper,
     ##                                    mean = mixdist$means, sd = sqrt(mixdist$variances))
     ## postmeans <- array(postmeans, dim = dim(mixdist$means))
-    postmeans[which_pointmass] <- 0
 
     postvars <- (1 + (alpha * stats::dnorm(alpha) - beta * stats::dnorm(beta)) / Z -
                  ((stats::dnorm(alpha) - stats::dnorm(beta)) / Z) ^ 2) * mixdist$variances
+    postvars[which_pointmass] <- 0
 
     ## truncnorm method
     ## postvars <- truncnorm::vtruncnorm(a = mixdist$lower, b = mixdist$upper,
     ##                                   mean = mixdist$means, sd = sqrt(mixdist$variances))
     ## postvars <- array(postvars, dim = dim(mixdist$means))
-    postvars[which_pointmass] <- 0
 
     second_moment <- apply(mixdist$weights * (postmeans ^ 2 + postvars), 1, sum)
     first_moment2 <- apply(mixdist$weights * postmeans, 1, sum) ^ 2
@@ -795,10 +817,27 @@ mix_cdf_array.normalmix_array <- function(mixdist, q) {
 }
 mix_cdf_array.truncnormalmix_array <- function(mixdist, q) {
     which_pointmass <- mixdist$variances == 0 | (mixdist$lower == 0 & mixdist$upper == 0)
-    pless <- truncnorm::ptruncnorm(q = q, a = mixdist$lower, b = mixdist$upper,
-                                   mean = mixdist$means, sd = sqrt(mixdist$variances))
-    pless <- array(pless, dim = dim(mixdist$means))
+
+    sdarray <- sqrt(mixdist$variances)
+    alpha <- (mixdist$lower - mixdist$means) / sdarray
+    beta  <- (mixdist$upper - mixdist$means) / sdarray
+    xi    <- (q - mixdist$mean) / sdarray
+    which_switch <- alpha > 0
+    Z                  <- array(NA, dim = dim(alpha))
+    num                <- array(NA, dim = dim(alpha))
+    Z[!which_switch]   <- stats::pnorm(beta[!which_switch]) - stats::pnorm(alpha[!which_switch])
+    num[!which_switch] <- stats::pnorm(xi[!which_switch]) - stats::pnorm(alpha[!which_switch])
+    Z[which_switch]    <- stats::pnorm(-alpha[which_switch]) - stats::pnorm(-beta[which_switch])
+    num[which_switch]  <- stats::pnorm(-alpha[which_switch]) - stats::pnorm(-xi[which_switch])
+    pless <- num / Z
     pless[which_pointmass] <- (q >= 0) * 1
+
+    ## truncnorm package way
+    ## pless <- truncnorm::ptruncnorm(q = q, a = mixdist$lower, b = mixdist$upper,
+    ##                                mean = mixdist$means, sd = sqrt(mixdist$variances))
+    ## pless <- array(pless, dim = dim(mixdist$means))
+    ## pless[which_pointmass] <- (q >= 0) * 1
+
     return(apply(pless * mixdist$weights, 1, sum))
 }
 mix_cdf_array.unimix_array <- function(mixdist, q) {
@@ -920,6 +959,50 @@ rnormalmix <- function(n, mixdense) {
     which_norm <- sample(1:k, size = n, prob = mixdense$pi, replace = TRUE)
     samp <- stats::rnorm(n = n, mean = mixdense$mean[which_norm], sd = mixdense$sd[which_norm])
     return(samp)
+}
+
+#' CDF function for a mixture of normals.
+#'
+#' @param q The quantile.
+#' @param mixdense An object of class \code{normalmix}.
+#'
+#' @author David Gerard
+#'
+#' @export
+pnormalmix <- function(q, mixdense) {
+    assertthat::are_equal(class(mixdense), "normalmix")
+    pout <- sum(mixdense$pi * stats::pnorm(q = q, mean = mixdense$mean, sd = mixdense$sd))
+    return(pout)
+}
+
+#' Density function for a mixture of normals.
+#'
+#' @param x The location to calculate the density.
+#' @param mixdense An object of class \code{normalmix}.
+#'
+#' @author David Gerard
+#'
+#' @export
+dnormalmix <- function(x, mixdense) {
+    assertthat::are_equal(class(mixdense), "normalmix")
+    dout <- sum(mixdense$pi * stats::dnorm(x = x, mean = mixdense$mean, sd = mixdense$sd))
+    return(dout)
+}
+
+#' Quantile function for a mixture of normals.
+#'
+#' @param p The probability at which to calculate the quantile.
+#' @param mixdense An object of class \code{normalmix}.
+#'
+#' @author David Gerard
+#'
+#' @export
+qnormalmix <- function(p, mixdense) {
+    psub <- function(q, p, mixdense) {
+        return(pnormalmix(q = q, mixdense = mixdense) - p)
+    }
+    rootout <- stats::uniroot(f = psub, interval = c(-100, 100), p = p, mixdense = mixdense)
+    return(rootout)
 }
 
 #' Random draw from a mixture of uniforms.
