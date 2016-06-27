@@ -80,6 +80,10 @@
 #' @param posthoc_inflate A logical. Should we multiply the estimate
 #'     of the variance inflation parameter by \code{nrow(X) / (nrow(X)
 #'     - k - ncol(X))} (\code{TRUE}) or not (\code{FALSE})?
+#' @param additive_inflate A logical. Should we also try to inflate
+#'     additively (\code{TRUE}) or not (\code{FALSE})? Defaults to
+#'     \code{FALSE}. Additive inflation is not supported when
+#'     \code{likelihood = "t"}.
 #'
 #'
 #' @return Except for the list \code{ruv}, the values returned are the
@@ -170,7 +174,7 @@ ash_ruv <- function(Y, X, ctl = NULL, k = NULL,
                     cov_of_interest = ncol(X),
                     likelihood = c("normal", "t"), ash_args = list(),
                     posthoc_inflate = TRUE, limmashrink = FALSE,
-                    include_intercept = TRUE, gls = TRUE,
+                    include_intercept = TRUE, gls = TRUE, additive_inflate = FALSE,
                     fa_func = pca_naive, fa_args = list()) {
 
     if (is.null(ctl)) {
@@ -252,11 +256,17 @@ ash_ruv <- function(Y, X, ctl = NULL, k = NULL,
     assertthat::are_equal(length(sig_diag), ncol(Y))
     assertthat::assert_that(all(sig_diag > 0))
     if (k != 0) {
-        assertthat::assert_that(is.matrix(alpha))
-        assertthat::are_equal(nrow(alpha), k)
-        assertthat::are_equal(ncol(alpha), ncol(Y))
+        if (!is.matrix(alpha)) {
+            stop("alpha from fa_func needs to be a matrix")
+        } else if (ncol(alpha) != k) {
+            stop("k not equal to ncol(alpha) from fa_func")
+        } else if (nrow(alpha) != ncol(Y)){
+            stop("nrow(alpha) from fa_func needs to equal ncol(Y)")
+        }
     } else {
-        assertthat::assert_that(is.null(alpha))
+        if (!is.null(alpha)) {
+            stop("alpha needs to be NULL when k = 0")
+        }
     }
 
     ## Shrink variances if desired.
@@ -264,6 +274,14 @@ ash_ruv <- function(Y, X, ctl = NULL, k = NULL,
         limma_out <- limma::squeezeVar(var = sig_diag,
                                        df = nrow(X) - ncol(X) - k)
         sig_diag <- limma_out$var.post
+        if (likelihood == "t") {
+            if (limma_out$df.prior == Inf) {
+                message("limma estimated df = Inf . Changing likelihood to normal")
+                likelihood <- "normal"
+            } else {
+                ash_args$df <- limma_out$df.prior
+            }
+        }
     } else if (!requireNamespace("limma", quietly = TRUE) & limmashrink) {
         stop("limmashrink = TRUE but limma not installed. To install limma, run in R:\n    source(\"https://bioconductor.org/biocLite.R\")\n    biocLite(\"limma\")")
     }
@@ -302,6 +320,23 @@ ash_ruv <- function(Y, X, ctl = NULL, k = NULL,
         multiplier <- mean(resid_mat ^ 2 / sig_diag_scaled[ctl])
     } else {
         multiplier <- 1
+    }
+
+
+    if (additive_inflate) {
+        if (likelihood == "t") {
+            stop("additive_inflate = TRUE not supported when likelihood = \"t\"")
+        }
+        zlambda_init <- c(Z1, multiplier, 0)
+        sqout <- SQUAREM::squarem(par = zlambda_init, fixptfn = additive_fix_wrapper,
+                                  objfn = additive_obj_wrapper,
+                                  Y = Yc, alpha = alphac, sig_diag = sig_diag_scaled[ctl])
+        zlambda <- sqout$par
+        Z1 <- matrix(zlambda[1:(length(zlambda) - 2)], ncol = 1)
+        multiplier <- zlambda[length(zlambda) - 1]
+        lambda2 <- zlambda[length(zlambda)]
+    } else {
+        lambda2 <- 0
     }
 
 
@@ -349,7 +384,7 @@ ash_ruv <- function(Y, X, ctl = NULL, k = NULL,
     }
 
     ## run ASH
-    sebetahat <- sqrt(sig_diag_scaled * multiplier_final)
+    sebetahat <- sqrt((sig_diag_scaled + lambda2) * multiplier_final)
     ash_args$betahat   <- c(betahat)
     ash_args$sebetahat <- sebetahat
     ash_out <- do.call(what = ash.workhorse, args = ash_args)
@@ -361,8 +396,8 @@ ash_ruv <- function(Y, X, ctl = NULL, k = NULL,
     ash_out$ruv$sebetahat_ols <- sqrt(sig_diag_scaled)
     ash_out$ruv$betahat       <- betahat
     ash_out$ruv$sebetahat     <- sebetahat
-    ash_out$ruv$tstats        <- betahat / sqrt(sig_diag_scaled * multiplier)
-    ash_out$ruv$tstats_post   <- betahat / sqrt(sig_diag_scaled * multiplier) *
+    ash_out$ruv$tstats        <- betahat / sqrt((sig_diag_scaled + lambda2) * multiplier)
+    ash_out$ruv$tstats_post   <- betahat / sqrt((sig_diag_scaled + lambda2) * multiplier) *
         sqrt((nrow(X) - k - ncol(X)) / nrow(X))
     ash_out$ruv$pvalues       <- 2 * (stats::pt(q = -abs(ash_out$ruv$tstats),
                                                 df = nrow(X) - k - ncol(X)))
@@ -373,6 +408,7 @@ ash_ruv <- function(Y, X, ctl = NULL, k = NULL,
     ash_out$ruv$sigma2        <- sig_diag
     ash_out$ruv$fnorm_x       <- fnorm_x
     ash_out$ruv$Z1            <- Z1
+    ash_out$ruv$additiver     <- lambda2 ## the additive inflation parameter
 
     return(ash_out)
 }
@@ -585,6 +621,149 @@ tregress_obj_wrapper <- function(lambda, Z, Y, alpha, sig_diag, nu) {
     llike <- tregress_obj(zlambda = zlambda, Y = Y, alpha = alpha,
                           sig_diag = sig_diag, nu = nu)
     return(llike)
+}
+
+
+
+#' Update for lambda1 and Z given lambda2 in additive variance
+#' inflation iterations.
+#'
+#' @param Z The current estimates of the confounders
+#' @param lambda1 A scalar. The current estimate of the multiplicative
+#'     variance inflation parameter.
+#' @param lambda2 A scalar. The current estimate of the additive
+#'     variance inflation parameter.
+#' @param Y A matrix of numerics of one column. The data.
+#' @param alpha A matrix of numerics. The estimated coefficients of
+#'     the confounders.
+#' @param sig_diag A vector of positive numerics. The estimates of the
+#'     variances.
+#'
+#' @author David Gerard
+additive_update_zl1 <- function(Z, lambda1, lambda2, Y, alpha, sig_diag) {
+    assertthat::assert_that(is.matrix(Z))
+    assertthat::assert_that(is.matrix(Y))
+    assertthat::assert_that(is.matrix(alpha))
+    assertthat::assert_that(is.numeric(lambda1))
+    assertthat::assert_that(is.numeric(lambda2))
+    assertthat::assert_that(is.numeric(sig_diag))
+    assertthat::are_equal(nrow(Y), nrow(alpha))
+    assertthat::are_equal(length(sig_diag), nrow(Y))
+    assertthat::are_equal(length(lambda2), 1)
+    assertthat::are_equal(length(lambda1), 1)
+    assertthat::are_equal(ncol(Z), 1)
+    assertthat::are_equal(nrow(Z), col(alpha))
+    assertthat::assert_that(lambda1 > 0)
+    assertthat::assert_that(lambda2 >= 0)
+
+    wvec <- 1 / (sig_diag + lambda2)
+    Znew <- solve(t(alpha) %*% diag(wvec) %*% alpha) %*% t(alpha) %*% diag(wvec) %*% Y
+    resid_mat <- Y - alpha %*% Z
+    lambda1_new <- mean(resid_mat ^ 2 * wvec)
+    return(list(Znew = Znew, lambda1_new = lambda1_new))
+}
+
+#' Update for lambda2 given Z and lambda in additive variance
+#' inflation iterations.
+#'
+#' @inheritParams additive_update_zl1
+#'
+#' @author David Gerard
+additive_update_l2 <- function(Z, lambda1, lambda2, Y, alpha, sig_diag) {
+    assertthat::assert_that(is.matrix(Z))
+    assertthat::assert_that(is.matrix(Y))
+    assertthat::assert_that(is.matrix(alpha))
+    assertthat::assert_that(is.numeric(lambda1))
+    assertthat::assert_that(is.numeric(lambda2))
+    assertthat::assert_that(is.numeric(sig_diag))
+    assertthat::are_equal(nrow(Y), nrow(alpha))
+    assertthat::are_equal(length(sig_diag), nrow(Y))
+    assertthat::are_equal(length(lambda2), 1)
+    assertthat::are_equal(length(lambda1), 1)
+    assertthat::are_equal(ncol(Z), 1)
+    assertthat::are_equal(nrow(Z), col(alpha))
+    assertthat::assert_that(lambda1 > 0)
+    assertthat::assert_that(lambda2 >= 0)
+
+    oout <- stats::optim(par = lambda2, fn= additive_obj,
+                         Z = Z, lambda1 = lambda1,
+                         Y = Y, alpha = alpha,
+                         sig_diag = sig_diag,
+                         control = list(fnscale = -1),
+                         method = "Brent",
+                         lower = 0,
+                         upper = max(sig_diag) * 4)
+    return(oout$par)
+}
+
+#' Log-likelihood for additive variance inflation.
+#'
+#' @inheritParams additive_update_zl1
+#'
+#' @author David Gerard
+additive_obj <- function(Z, lambda1, lambda2, Y, alpha, sig_diag) {
+    assertthat::assert_that(is.matrix(Z))
+    assertthat::assert_that(is.matrix(Y))
+    assertthat::assert_that(is.matrix(alpha))
+    assertthat::assert_that(is.numeric(lambda1))
+    assertthat::assert_that(is.numeric(lambda2))
+    assertthat::assert_that(is.numeric(sig_diag))
+    assertthat::are_equal(nrow(Y), nrow(alpha))
+    assertthat::are_equal(length(sig_diag), nrow(Y))
+    assertthat::are_equal(length(lambda2), 1)
+    assertthat::are_equal(length(lambda1), 1)
+    assertthat::are_equal(ncol(Z), 1)
+    assertthat::are_equal(nrow(Z), col(alpha))
+    assertthat::assert_that(lambda1 > 0)
+    assertthat::assert_that(lambda2 >= 0)
+
+    resid_mat <- Y - alpha %*% Z
+    p <- nrow(Y)
+    sum1 <- -p / 2 * log(2 * pi)
+    sum2 <- -p / 2 * log(lambda1)
+    sum3 <- -1 * sum(log(sig_diag + lambda2)) / 2
+    sum4 <- -1 * sum(resid_mat ^ 2 / (lambda1 * (sig_diag + lambda2))) / 2
+    llike <- sum1 + sum2 + sum3 + sum4
+    return(llike)
+}
+
+#' Wrapper for additive_update_zl1 and additive_update_l2, mostly to
+#' use SQUAREM.
+#'
+#' @inheritParams additive_update_zl1
+#' @param zlambda A vector of numerics. Z occupies all but the last
+#'     two positiions. lambda1 is the second to last position. lambda2
+#'     is the last position.
+additive_fix_wrapper <- function(zlambda, Y, alpha, sig_diag) {
+    Z <- matrix(zlambda[1:(length(zlambda) - 2)])
+    lambda1 <- zlambda[length(zlambda) - 1]
+    lambda2 <- zlambda[length(zlambda)]
+    aout <- additive_update_zl1(Z = Z, lambda1 = lambda1,
+                                lambda2 = lambda2, Y = Y,
+                                alpha = alpha, sig_diag = sig_diag)
+    Znew <- aout$Znew
+    lambda1_new <- aout$lambda1_new
+
+    lambda2_new <- additive_update_l2(Z = Znew, lambda1 = lambda1_new,
+                                      lambda2 = lambda2, Y = Y,
+                                      alpha = alpha, sig_diag = sig_diag)
+    zlambda_new <- c(Znew, lambda1_new, lambda2_new)
+    return(zlambda_new)
+}
+
+#' Wrapper for additive_obj, mostly to use SQUAREM.
+#'
+#' @inheritParams additive_fix_wrapper
+additive_obj_wrapper <- function(zlambda, Y, alpha, sig_diag) {
+    Z <- matrix(zlambda[1:(length(zlambda) - 2)], ncol = 1)
+    lambda1 <- zlambda[length(zlambda) - 1]
+    lambda2 <- zlambda[length(zlambda)]
+
+    assertthat::are_equal(nrow(Z), ncol(alpha))
+    oout <- additive_obj(Z = Z, lambda1 = lambda1,
+                         lambda2 = lambda2, Y = Y,
+                         alpha = alpha, sig_diag = sig_diag)
+    return(oout)
 }
 
 

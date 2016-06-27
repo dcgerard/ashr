@@ -8,7 +8,8 @@ inflation parameter, then run ASH.}
 ash_ruv(Y, X, ctl = NULL, k = NULL, cov_of_interest = ncol(X),
   likelihood = c("normal", "t"), ash_args = list(),
   posthoc_inflate = TRUE, limmashrink = FALSE, include_intercept = TRUE,
-  gls = TRUE, fa_func = pca_naive, fa_args = list())
+  gls = TRUE, additive_inflate = FALSE, fa_func = pca_naive,
+  fa_args = list())
 }
 \arguments{
 \item{Y}{A matrix of numerics. These are the response variables
@@ -59,6 +60,11 @@ will be unchanged.}
 (\code{TRUE}) or ordinary least squares (\code{FALSE}) for
 estimating the confounders? The OLS version is equivalent to
 using RUV4 to estimate the confounders.}
+
+\item{additive_inflate}{A logical. Should we also try to inflate
+additively (\code{TRUE}) or not (\code{FALSE})? Defaults to
+\code{FALSE}. Additive inflation is not supported when
+\code{likelihood = "t"}.}
 
 \item{fa_func}{A factor analysis function. The function must have
 as inputs a numeric matrix \code{Y} and a rank (numeric scalar)
