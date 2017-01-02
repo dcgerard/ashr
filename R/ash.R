@@ -1,5 +1,5 @@
 #' @useDynLib ashr
-#' @import truncnorm SQUAREM doParallel pscl Rcpp foreach parallel
+#' @import truncnorm SQUAREM doParallel pscl Rcpp foreach parallel 
 
 #' @title Main Adaptive Shrinkage function
 #'
